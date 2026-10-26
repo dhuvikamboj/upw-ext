@@ -17,17 +17,17 @@ Job Radar for Upwork monitors your targeted freelance skills and delivers instan
 
 KEY FEATURES
 • Real-Time Job Radar: Get notified via desktop alerts and audio chimes within minutes of new job postings.
-• 160+ Skill Tag Selector: Target specific IT and non-IT specializations (e.g. Python, React, UI/UX, Graphic Design, QA Testing, SEO, Copywriting).
+• 160+ Skill Tag Selector: Target specific professional specializations across technical, creative, and administrative categories.
 • Live Active-Filter Sync: Automatically recognizes your open Upwork search tabs and filters without re-typing.
 • Client Trust & Scam Shield: Evaluates client payment verification, hire rate, spending history, and flags high-risk or suspended accounts to protect your connects.
-• 1-Click AI Proposal Prompts: Generates tailored, high-converting proposal prompts based on the job's exact deliverables, ready to paste into ChatGPT, Claude, or Gemini.
+• 1-Click AI Proposal Prompts: Generates tailored, high-converting proposal prompts based on the job's exact deliverables, ready to paste into your AI writing assistant.
 • Proposal Activity & Analytics: Track which jobs you viewed, saved, and applied to, and export your history to a clean PDF report.
 
 HOW TO USE
 1. Click the Job Radar icon in your Chrome toolbar or open Options to select your targeted skills.
 2. Keep an Upwork search tab open in your browser while you work.
 3. When a new job matches your skills, a desktop alert and audio chime notify you immediately.
-4. Click "AI Bid Prompt" to review client safety scores and copy an expert proposal prompt for ChatGPT or Claude.
+4. Click "AI Bid Prompt" to review client safety scores and copy an expert proposal prompt.
 5. Apply early to maximize your interview conversion rate.
 
 PRIVACY & SECURITY
@@ -41,7 +41,7 @@ PERMISSIONS
 SUPPORT
 Have questions or suggestions? We are here to help.
 Email: support@freelanceradar.app
-Website: https://freelanceradar.app
+Website: https://github.com/panditkamal/upw-ext
 
 Version 1.0.0 — Initial Release with real-time alerts, 160+ skills engine, client trust scoring, and 1-click AI proposal prompt generation.
 
