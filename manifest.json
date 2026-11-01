@@ -46,9 +46,23 @@
     "idle",
     "tabs",
     "scripting",
-    "activeTab"
+    "activeTab",
+    "contextMenus"
   ],
   "host_permissions": [
-    "*://*.upwork.com/*"
-  ]
+    "*://*.upwork.com/*",
+    "https://discord.com/api/webhooks/*",
+    "https://discordapp.com/api/webhooks/*",
+    "https://hooks.slack.com/services/*"
+  ],
+  "commands": {
+    "scan-now": {
+      "suggested_key": { "default": "Alt+Shift+S" },
+      "description": "Scan Upwork now"
+    },
+    "open-latest": {
+      "suggested_key": { "default": "Alt+Shift+J" },
+      "description": "Open the latest matching job"
+    }
+  }
 }

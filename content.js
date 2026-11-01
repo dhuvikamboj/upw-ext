@@ -149,6 +149,8 @@ function extractJobsFromDocument(doc) {
         client: clientSummary,
         description: description || `Scope: ${title}`,
         skillsRequired: reqSkills,
+        cardText: containerText.replace(/\s+/g, ' ').trim().slice(0, 800),
+        country: (cardContainer?.querySelector('[data-test="location"]')?.textContent || '').trim(),
         detectedAt: Date.now(),
         applied: false
       });
@@ -183,6 +185,7 @@ function extractJobsFromJson(root) {
         url: `https://www.upwork.com/jobs/${node.ciphertext}`,
         budget: node.amount?.amount ? `$${node.amount.amount}` : (node.hourlyBudgetText || 'Competitive'),
         client: node.client?.totalSpent ? `$${Math.round(node.client.totalSpent)} spent` : 'Client',
+        country: node.client?.location?.country || '',
         detectedAt: Date.now(),
         applied: false
       });
@@ -379,6 +382,13 @@ if (window.location.hostname.includes('upwork.com')) {
       }).catch(() => {});
     }
     injectOnPageJobIntelligence();
+
+    // Job detail page shows the exact connects price: tell the background so the popup can show it
+    const idMatch = location.href.match(/~[a-zA-Z0-9]+/);
+    const c = (document.body?.textContent || '').match(/Send a proposal for:?\s*(\d+)\s*Connects|Required Connects:?\s*(\d+)/i);
+    if (idMatch && c) {
+      chrome.runtime.sendMessage({ type: 'JOB_CONNECTS', id: idMatch[0], connects: Number(c[1] || c[2]) }).catch(() => {});
+    }
   }, 1200);
 
   // Monitor DOM changes for dynamic slider opens

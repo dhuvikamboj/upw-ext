@@ -1,6 +1,8 @@
 // background.js - Upwork Job Radar Service Worker
 // Manifest V3 Compliant (Pure async/await, ephemeral state stored in chrome.storage)
 
+importScripts('filters.js');
+
 const ALARM_NAME = 'UPWORK_MONITOR_ALARM';
 
 const DEFAULT_SETTINGS = {
@@ -9,6 +11,22 @@ const DEFAULT_SETTINGS = {
   searchUrl: 'https://www.upwork.com/nx/search/jobs/?q=python%20developer&sort=recency',
   intervalMinutes: 3,
   minBudget: 0,
+  minHourly: 0,
+  minFixed: 0,
+  searches: [],
+  excludeKeywords: '',
+  excludeCountries: '',
+  quietHoursEnabled: false,
+  quietStart: '22:00',
+  quietEnd: '07:00',
+  dailyAlertCap: 0,
+  minFitScore: 0,
+  connectsPerProposal: 16,
+  monthlyConnectsBudget: 0,
+  webhookUrl: '',
+  primaryColor: '#14a800',
+  blockedClients: [],
+  snippets: [],
   soundEnabled: true,
   desktopNotifications: true,
   telegramEnabled: false,
@@ -94,39 +112,54 @@ async function runCycle(settings) {
 
 // --- Monitoring Engine ---
 
-async function performMonitoringCheck(settings) {
-  let statusText = 'OK';
-  try {
-    // 1. Check if an Upwork tab is already open
-    const tabs = await chrome.tabs.query({ url: '*://*.upwork.com/*' });
+// Primary search (skills picker + global budget) followed by any enabled extra searches.
+function getSearches(settings) {
+  const primary = {
+    name: 'Primary',
+    url: settings.searchUrl,
+    minHourly: settings.minHourly ?? settings.minBudget ?? 0,
+    minFixed: settings.minFixed ?? 0,
+    color: settings.primaryColor,
+    notify: true
+  };
+  return [primary, ...(settings.searches || []).filter((s) => s.enabled !== false && s.url)];
+}
 
+async function performMonitoringCheck(settings) {
+  const statuses = [];
+  const searches = getSearches(settings);
+  for (let i = 0; i < searches.length; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, 2000 + Math.random() * 3000));
+    try {
+      statuses.push(await scanSearch(settings, searches[i], i === 0));
+    } catch (error) {
+      console.error('[Upwork Radar] Monitoring check error:', error);
+      statuses.push(`Error: ${error.message}`);
+    }
+  }
+  await saveCheckLog(statuses.join(' | '));
+}
+
+async function scanSearch(settings, search, allowTab) {
+  // 1. Primary search: reuse an already-open Upwork tab if one responds
+  if (allowTab) {
+    const tabs = await chrome.tabs.query({ url: '*://*.upwork.com/*' });
     if (tabs.length > 0) {
-      const targetTab = tabs[0];
       try {
-        const response = await chrome.tabs.sendMessage(targetTab.id, {
-          type: 'PERFORM_PAGE_CHECK',
-          settings
-        });
+        const response = await chrome.tabs.sendMessage(tabs[0].id, { type: 'PERFORM_PAGE_CHECK', settings });
         if (response && response.jobs) {
-          await processNewJobs(response.jobs, settings);
-          statusText = `Active Tab (${response.jobs.length} jobs scanned)`;
-          await saveCheckLog(statusText);
-          return;
+          await processNewJobs(response.jobs, settings, search);
+          return `Active Tab (${response.jobs.length} jobs scanned)`;
         }
       } catch (err) {
         // Tab not responsive yet, fallback to background fetch
       }
     }
-
-    // 2. Direct background fetch using user's authenticated session cookies
-    const fetchedJobs = await fetchSearchFeedDirect(settings);
-    statusText = `Direct Scan (${fetchedJobs ? fetchedJobs.length : 0} scanned)`;
-  } catch (error) {
-    console.error('[Upwork Radar] Monitoring check error:', error);
-    statusText = `Error: ${error.message}`;
   }
 
-  await saveCheckLog(statusText);
+  // 2. Direct background fetch using user's authenticated session cookies
+  const fetchedJobs = await fetchSearchFeedDirect(settings, search);
+  return `${search.name}: Direct Scan (${fetchedJobs ? fetchedJobs.length : 0} scanned)`;
 }
 
 async function saveCheckLog(status) {
@@ -139,8 +172,8 @@ async function saveCheckLog(status) {
 }
 
 // Fetch search results directly with session credentials
-async function fetchSearchFeedDirect(settings) {
-  let targetUrl = settings.searchUrl;
+async function fetchSearchFeedDirect(settings, search) {
+  let targetUrl = search.url;
   if (!targetUrl || !targetUrl.includes('upwork.com')) {
     const q = encodeURIComponent(settings.jobProfile || settings.searchQuery || 'developer');
     targetUrl = `https://www.upwork.com/nx/search/jobs/?q=${q}&sort=recency`;
@@ -163,7 +196,7 @@ async function fetchSearchFeedDirect(settings) {
     const text = await response.text();
     const jobs = parseJobsFromHtmlString(text);
     if (jobs && jobs.length > 0) {
-      await processNewJobs(jobs, settings);
+      await processNewJobs(jobs, settings, search);
     }
     return jobs;
   } catch (err) {
@@ -215,6 +248,7 @@ function parseJobsFromHtmlString(html) {
         url: rawUrl.startsWith('http') ? rawUrl : `https://www.upwork.com${rawUrl}`,
         budget: budget,
         client: 'Upwork Client',
+        cardText: contextWindow.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
         detectedAt: Date.now(),
         applied: false
       });
@@ -235,6 +269,7 @@ function extractJobsFromStateObject(obj) {
         url: `https://www.upwork.com/jobs/${node.ciphertext}`,
         budget: node.amount?.amount ? `$${node.amount.amount}` : (node.hourlyBudgetText || 'Competitive'),
         client: node.client?.totalSpent ? `$${Math.round(node.client.totalSpent)} spent` : 'Client',
+        country: node.client?.location?.country || '',
         detectedAt: Date.now(),
         applied: false
       });
@@ -250,7 +285,7 @@ function extractJobsFromStateObject(obj) {
 
 // --- Job Processing & Alerts ---
 
-async function processNewJobs(incomingJobs, settings) {
+async function processNewJobs(incomingJobs, settings, search = getSearches(settings)[0]) {
   if (!incomingJobs || incomingJobs.length === 0) return;
 
   const storage = await chrome.storage.local.get(['notifiedJobIds', 'seenJobIds', 'jobsToday', 'unviewedCount']);
@@ -264,16 +299,9 @@ async function processNewJobs(incomingJobs, settings) {
   for (const job of incomingJobs) {
     if (!job.id) continue;
 
-    // Filter by minimum budget if set
-    if (settings.minBudget > 0) {
-      const budgetNumbers = (job.budget || '').match(/\d+/g);
-      if (budgetNumbers && budgetNumbers.length > 0) {
-        const maxParsedBudget = Math.max(...budgetNumbers.map(Number));
-        if (maxParsedBudget < settings.minBudget) {
-          continue;
-        }
-      }
-    }
+    if (!passesBudget(job, search) || isExcluded(job, settings)) continue;
+    job.search = search.name;
+    job.searchColor = search.color || '#14a800';
 
     // ALWAYS ensure job is included in jobsToday list so user sees it in popup!
     if (!existingIdSet.has(job.id)) {
@@ -284,7 +312,7 @@ async function processNewJobs(incomingJobs, settings) {
     // Only dispatch desktop notification if brand new (never notified before)
     if (!notifiedJobIds.has(job.id)) {
       notifiedJobIds.add(job.id);
-      newlyNotifiedJobs.push(job);
+      if (search.notify !== false && scoreJob(job, settings).score >= (settings.minFitScore || 0)) newlyNotifiedJobs.push(job);
     }
   }
 
@@ -303,16 +331,45 @@ async function processNewJobs(incomingJobs, settings) {
 
   await updateBadge(unviewedCount);
 
-  // Trigger Notifications for top new matches
+  // Quiet hours and daily cap gate alerts only; jobs still land in the popup list
+  const { snoozeUntil = 0 } = await chrome.storage.local.get('snoozeUntil');
+  if (inQuietHours(settings) || snoozeUntil > Date.now()) return;
+  if (!settings.desktopNotifications && !settings.webhookUrl) return;
+  const today = new Date().toDateString();
+  let { alertCount } = await chrome.storage.local.get('alertCount');
+  if (!alertCount || alertCount.date !== today) alertCount = { date: today, count: 0 };
+  const cap = settings.dailyAlertCap > 0 ? settings.dailyAlertCap : Infinity;
   for (const job of newlyNotifiedJobs.slice(0, 2)) {
-    if (settings.desktopNotifications) {
-      dispatchDesktopNotification(job);
-    }
+    if (alertCount.count >= cap) break;
+    if (settings.desktopNotifications) dispatchDesktopNotification(job, settings);
+    if (settings.webhookUrl) await sendWebhook(settings.webhookUrl, job, settings);
+    alertCount.count++;
+  }
+  await chrome.storage.local.set({ alertCount });
+  // Badge takes the colour of the search that just fired
+  const last = newlyNotifiedJobs[0];
+  if (last && last.searchColor) await chrome.action.setBadgeBackgroundColor({ color: last.searchColor });
+}
+
+async function sendWebhook(url, job, settings) {
+  const text = `🚨 ${job.title}\n💰 ${job.budget} | Fit ${scoreJob(job, settings).score}% | ${job.client}` +
+    `${job.search ? ` | ${job.search}` : ''}\n${job.url}`;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(webhookBody(url, text))
+    });
+    if (!res.ok) console.warn('[Upwork Radar] Webhook HTTP', res.status);
+    return res.ok;
+  } catch (err) {
+    console.warn('[Upwork Radar] Webhook error:', err.message);
+    return false;
   }
 }
 
 // Native Chrome Notification (Hardened with absolute icon URL and Mac support)
-function dispatchDesktopNotification(job) {
+function dispatchDesktopNotification(job, settings = {}) {
   const notifId = `upwork_${job.id}_${Date.now()}`;
   const iconPath = chrome.runtime.getURL('icons/icon128.png');
 
@@ -321,8 +378,8 @@ function dispatchDesktopNotification(job) {
     {
       type: 'basic',
       iconUrl: iconPath,
-      title: `🚨 ${job.title.substring(0, 48)}`,
-      message: `💰 Budget: ${job.budget} | Client: ${job.client}\nClick to view and apply!`,
+      title: `🚨 ${job.search ? `[${job.search}] ` : ''}${job.title.substring(0, 40)}`,
+      message: `💰 ${job.budget} | Fit ${scoreJob(job, settings).score}% | ${job.client}\nClick to view and apply!`,
       priority: 2,
       silent: false
     },
@@ -376,12 +433,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         break;
       }
 
+      case 'JOB_CONNECTS': {
+        const { jobsToday = [] } = await chrome.storage.local.get('jobsToday');
+        await chrome.storage.local.set({
+          jobsToday: jobsToday.map((j) => (j.id === message.id ? { ...j, connects: message.connects } : j))
+        });
+        sendResponse({ success: true });
+        break;
+      }
+
       case 'NEW_JOBS_FROM_CONTENT': {
         const { settings = DEFAULT_SETTINGS } = await chrome.storage.local.get('settings');
         if (message.jobs) {
           await processNewJobs(message.jobs, settings);
         }
         sendResponse({ success: true });
+        break;
+      }
+
+      case 'TEST_WEBHOOK': {
+        const ok = await sendWebhook(message.url, {
+          title: 'Job Radar webhook works', budget: 'Test', client: 'Test alert', url: 'https://www.upwork.com'
+        }, {});
+        sendResponse({ success: ok });
         break;
       }
 
@@ -418,3 +492,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   })();
   return true;
 });
+
+// --- Shortcuts & context menu ---
+
+async function scanNow() {
+  const { settings = DEFAULT_SETTINGS } = await chrome.storage.local.get('settings');
+  await performMonitoringCheck(settings);
+}
+
+async function openLatestJob() {
+  const { jobsToday = [] } = await chrome.storage.local.get('jobsToday');
+  if (jobsToday[0]) await chrome.tabs.create({ url: jobsToday[0].url });
+}
+
+const MENU_ACTIONS = { radar_scan: scanNow, radar_latest: openLatestJob };
+const COMMAND_ACTIONS = { 'scan-now': scanNow, 'open-latest': openLatestJob };
+
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({ id: 'radar_scan', title: 'Scan Upwork now', contexts: ['action'] });
+    chrome.contextMenus.create({ id: 'radar_latest', title: 'Open latest matching job', contexts: ['action'] });
+  });
+});
+chrome.contextMenus.onClicked.addListener((info) => MENU_ACTIONS[info.menuItemId]?.());
+chrome.commands.onCommand.addListener((cmd) => COMMAND_ACTIONS[cmd]?.());

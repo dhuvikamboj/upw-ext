@@ -14,6 +14,40 @@ document.addEventListener('DOMContentLoaded', async () => {
   const emptyState = document.getElementById('emptyState');
   const jobCountBadge = document.getElementById('jobCountBadge');
   const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+  const connectsTracker = document.getElementById('connectsTracker');
+  const snoozeSelect = document.getElementById('snoozeSelect');
+  const snoozeStatus = document.getElementById('snoozeStatus');
+  const resumeBtn = document.getElementById('resumeBtn');
+  const snippetBox = document.getElementById('snippetBox');
+  const snippetSelect = document.getElementById('snippetSelect');
+  let snippets = [];
+
+  document.getElementById('snippetCopyBtn').addEventListener('click', async () => {
+    const sn = snippets[snippetSelect.value];
+    if (sn) {
+      await navigator.clipboard.writeText(sn.text);
+      modalCopiedToast.textContent = '✓ Snippet copied!';
+      modalCopiedToast.style.display = 'block';
+      setTimeout(() => { modalCopiedToast.style.display = 'none'; }, 2500);
+    }
+  });
+
+  snoozeSelect.addEventListener('change', async () => {
+    const v = snoozeSelect.value;
+    if (!v) return;
+    let until;
+    if (v === 'tomorrow') {
+      until = new Date();
+      until.setDate(until.getDate() + 1);
+      until.setHours(7, 0, 0, 0);
+      until = until.getTime();
+    } else {
+      until = Date.now() + Number(v) * 60000;
+    }
+    await chrome.storage.local.set({ snoozeUntil: until });
+    snoozeSelect.value = '';
+  });
+  resumeBtn.addEventListener('click', () => chrome.storage.local.remove('snoozeUntil'));
 
   // AI Modal elements
   const aiModal = document.getElementById('aiModal');
@@ -53,7 +87,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Real-time listener for background updates
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && (changes.jobsToday || changes.settings || changes.lastCheckInfo)) {
+    if (area === 'local' && (changes.jobsToday || changes.settings || changes.lastCheckInfo || changes.snoozeUntil || changes.applicationHistory)) {
       reloadState();
     }
   });
@@ -125,7 +159,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           currentSearchLabel.title = `Active filters: ${extractedData.activeSkills.join(', ')}`;
         }
 
-        renderJobs(updatedList);
+        renderJobs(updatedList, (await chrome.storage.local.get('settings')).settings);
 
         // 3. Notify background service worker
         await chrome.runtime.sendMessage({
@@ -219,8 +253,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function reloadState() {
-    const { settings = {}, jobsToday = [], lastCheckInfo = {} } =
-      await chrome.storage.local.get(['settings', 'jobsToday', 'lastCheckInfo']);
+    const { settings = {}, jobsToday = [], lastCheckInfo = {}, applicationHistory = [], snoozeUntil = 0 } =
+      await chrome.storage.local.get(['settings', 'jobsToday', 'lastCheckInfo', 'applicationHistory', 'snoozeUntil']);
+
+    const snoozed = snoozeUntil > Date.now();
+    snoozeStatus.textContent = snoozed
+      ? `Alerts snoozed until ${new Date(snoozeUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+      : '';
+    resumeBtn.style.display = snoozed ? '' : 'none';
+    snoozeSelect.style.display = snoozed ? 'none' : '';
+    snippets = settings.snippets || [];
+
+    const spent = connectsSpentThisMonth(applicationHistory);
+    const budget = settings.monthlyConnectsBudget || 0;
+    connectsTracker.textContent = budget
+      ? `🔗 Connects this month: ${spent} / ${budget}${spent > budget ? ' (over budget!)' : ''}`
+      : `🔗 Connects this month: ${spent}`;
+    connectsTracker.style.color = budget && spent > budget ? '#ef4444' : '';
 
     // Set toggle state
     const isActive = settings.monitoringActive !== false;
@@ -235,7 +284,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       lastScanText.textContent = 'Ready to scan';
     }
 
-    renderJobs(jobsToday);
+    renderJobs(jobsToday, settings);
   }
 
   function updateMonitoringUI(isActive) {
@@ -250,7 +299,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  function renderJobs(jobs) {
+  function renderJobs(jobs, settings = {}) {
     jobList.innerHTML = '';
     jobCountBadge.textContent = String(jobs.length);
 
@@ -267,8 +316,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       const card = document.createElement('div');
       card.className = `job-card ${job.applied ? 'applied' : ''}`;
       card.dataset.id = job.id;
+      if (job.searchColor) card.style.borderLeft = `4px solid ${job.searchColor}`;
 
       const timeAgo = formatTimeAgo(job.detectedAt);
+      const fit = scoreJob(job, settings);
+      const cost = fit.connects ?? (settings.connectsPerProposal || 16);
+      const prop = fit.proposals != null ? ` • ≤${fit.proposals} proposals` : '';
 
       card.innerHTML = `
         <a href="${escapeHtml(job.url)}" target="_blank" class="job-title-link" title="${escapeHtml(job.title)}">
@@ -279,11 +332,16 @@ document.addEventListener('DOMContentLoaded', async () => {
           <span class="badge badge-client">${escapeHtml(job.client || 'Client')}</span>
           <span class="badge-time">${timeAgo}</span>
         </div>
+        <div class="job-meta-row" title="Fit = skills 40, budget 20, competition 20, recency 20">
+          <span class="badge">${fit.score >= 70 ? '🔥' : fit.score >= 45 ? '👍' : '👎'} ${fit.score}% ${fit.label}${prop}</span>
+          <span class="badge">🔗 ${fit.connects == null ? '~' : ''}${cost} Connects</span>
+        </div>
         <div class="job-action-row">
           <button class="applied-toggle-btn">
             ${job.applied ? '✓ Applied' : '○ Mark Applied'}
           </button>
           <div style="display: flex; gap: 6px; align-items: center;">
+            <button class="block-btn" title="Block this client (matched by spend + rating + country)">🚫</button>
             <button class="ai-bid-btn" title="Client Risk Score & AI Proposal Prompt">
               🧠 AI Bid Prompt
             </button>
@@ -303,6 +361,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
       }
 
+      card.querySelector('.block-btn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await blockClient(job);
+      });
+
       // Apply link clicked -> Record in applicationHistory
       const applyBtn = card.querySelector('.apply-btn');
       applyBtn.addEventListener('click', async () => {
@@ -320,8 +383,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  async function blockClient(job) {
+    const fp = clientFingerprint(job);
+    if (!fp) {
+      alert('Not enough client info on this job to block it reliably (needs a "$ spent" figure).');
+      return;
+    }
+    if (!confirm(`Hide all future jobs from clients matching:\n${fp}\n\nUpwork hides client names, so this match is approximate.`)) return;
+    const { settings = {}, jobsToday = [] } = await chrome.storage.local.get(['settings', 'jobsToday']);
+    const blockedClients = [...(settings.blockedClients || [])];
+    if (!blockedClients.some((b) => b.fp === fp)) blockedClients.push({ fp, label: fp.replace(/\|/g, ' · ') });
+    await chrome.storage.local.set({
+      settings: { ...settings, blockedClients },
+      jobsToday: jobsToday.filter((j) => clientFingerprint(j) !== fp)
+    });
+  }
+
   async function toggleJobApplied(targetJob) {
-    const { jobsToday = [], applicationHistory = [] } = await chrome.storage.local.get(['jobsToday', 'applicationHistory']);
+    const { jobsToday = [], applicationHistory = [], settings = {} } = await chrome.storage.local.get(['jobsToday', 'applicationHistory', 'settings']);
+    const connects = targetJob.connects ?? scoreJob(targetJob, settings).connects ?? (settings.connectsPerProposal || 16);
 
     let isNowApplied = false;
     const updatedJobs = jobsToday.map((j) => {
@@ -337,6 +417,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (existingIndex >= 0) {
       updatedHistory[existingIndex].action = isNowApplied ? 'Applied' : 'Saved';
+      updatedHistory[existingIndex].connects = connects;
       updatedHistory[existingIndex].actionTimestamp = Date.now();
     } else {
       updatedHistory.unshift({
@@ -346,6 +427,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         budget: targetJob.budget,
         client: targetJob.client,
         action: isNowApplied ? 'Applied' : 'Saved',
+        connects,
         actionTimestamp: Date.now()
       });
     }
@@ -387,6 +469,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     modalPromptText.value = prompt;
     modalCopiedToast.style.display = 'none';
+    modalCopiedToast.textContent = '✓ Copied to clipboard! Ready to paste into ChatGPT / Claude.';
+    snippetBox.style.display = snippets.length ? '' : 'none';
+    snippetSelect.innerHTML = snippets.map((s, i) => `<option value="${i}">${escapeHtml(s.name)}</option>`).join('');
     aiModal.style.display = 'flex';
   }
 
@@ -537,6 +622,7 @@ function extractJobsAndFiltersFromDOM() {
         client: clientParts.join(' • ') || 'Upwork Client',
         description: description || `Scope: ${title}`,
         skillsRequired: reqSkills,
+        cardText: text.replace(/\s+/g, ' ').trim().slice(0, 800),
         detectedAt: Date.now(),
         applied: false
       });

@@ -215,7 +215,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const searchUrlInput = document.getElementById('searchUrl');
   const intervalMinutesSelect = document.getElementById('intervalMinutes');
-  const minBudgetInput = document.getElementById('minBudget');
+  const $ = (id) => document.getElementById(id);
+  const extraSearchesEl = $('extraSearches');
 
   const freelancerHeadlineInput = document.getElementById('freelancerHeadline');
   const freelancerYearsExpInput = document.getElementById('freelancerYearsExp');
@@ -248,7 +249,126 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   searchUrlInput.value = settings.searchUrl || generateSearchUrlFromSkills(selectedSkills);
   intervalMinutesSelect.value = String(settings.intervalMinutes ?? 3);
-  minBudgetInput.value = settings.minBudget || '';
+  $('minHourly').value = settings.minHourly ?? settings.minBudget ?? '';
+  $('minFixed').value = settings.minFixed || '';
+  $('excludeKeywords').value = settings.excludeKeywords || '';
+  $('excludeCountries').value = settings.excludeCountries || '';
+  $('quietHoursEnabled').checked = !!settings.quietHoursEnabled;
+  $('quietStart').value = settings.quietStart || '22:00';
+  $('quietEnd').value = settings.quietEnd || '07:00';
+  $('dailyAlertCap').value = settings.dailyAlertCap || '';
+  $('minFitScore').value = settings.minFitScore || '';
+  $('connectsPerProposal').value = settings.connectsPerProposal ?? 16;
+  $('monthlyConnectsBudget').value = settings.monthlyConnectsBudget || '';
+
+  // --- Webhook, colour, snippets, blocked clients, backup ---
+  $('webhookUrl').value = settings.webhookUrl || '';
+  $('primaryColor').value = settings.primaryColor || '#14a800';
+
+  $('testWebhookBtn').addEventListener('click', async () => {
+    const fb = $('testWebhookFeedback');
+    fb.className = 'status-msg';
+    fb.textContent = 'Sending...';
+    const res = await chrome.runtime.sendMessage({ type: 'TEST_WEBHOOK', url: $('webhookUrl').value.trim() }).catch(() => null);
+    fb.className = `status-msg ${res && res.success ? 'success' : 'error'}`;
+    fb.textContent = res && res.success ? '✓ Sent' : 'Failed - check the URL (Discord or Slack webhook only)';
+  });
+
+  const snippetRows = $('snippetRows');
+  (settings.snippets || []).forEach(addSnippetRow);
+  $('addSnippetBtn').addEventListener('click', () => addSnippetRow({}));
+
+  function addSnippetRow(sn) {
+    const row = document.createElement('div');
+    row.className = 'snippet-row';
+    row.innerHTML = `
+      <input class="input-control sn-name" placeholder="Name (e.g. Intro)" value="${escapeHtml(sn.name || '')}">
+      <textarea class="input-control sn-text" rows="3" placeholder="Snippet text">${escapeHtml(sn.text || '')}</textarea>
+      <button type="button" class="btn btn-secondary sn-del">Remove</button>`;
+    row.querySelector('.sn-del').addEventListener('click', () => row.remove());
+    snippetRows.appendChild(row);
+  }
+
+  function collectSnippets() {
+    return [...snippetRows.querySelectorAll('.snippet-row')]
+      .map((r) => ({ name: r.querySelector('.sn-name').value.trim(), text: r.querySelector('.sn-text').value }))
+      .filter((s) => s.text.trim())
+      .map((s, i) => ({ ...s, name: s.name || `Snippet ${i + 1}` }));
+  }
+
+  let blocked = [...(settings.blockedClients || [])];
+  renderBlocked();
+  function renderBlocked() {
+    const el = $('blockedList');
+    el.innerHTML = blocked.length ? '' : '<small class="hint">No blocked clients.</small>';
+    blocked.forEach((b, i) => {
+      const row = document.createElement('div');
+      row.className = 'setting-toggle-row';
+      row.innerHTML = `<div class="setting-title">${escapeHtml(b.label || b.fp)}</div>
+        <button type="button" class="btn btn-secondary">Unblock</button>`;
+      row.querySelector('button').addEventListener('click', () => { blocked.splice(i, 1); renderBlocked(); });
+      el.appendChild(row);
+    });
+  }
+
+  $('exportBtn').addEventListener('click', async () => {
+    const { settings: cur = {} } = await chrome.storage.local.get('settings');
+    const { webhookUrl, ...safe } = cur; // webhook URL is a secret
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(safe, null, 2)], { type: 'application/json' }));
+    a.download = 'job-radar-settings.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+  $('importBtn').addEventListener('click', () => $('importFile').click());
+  $('importFile').addEventListener('change', async (e) => {
+    const fb = $('backupFeedback');
+    try {
+      const imported = JSON.parse(await e.target.files[0].text());
+      if (!imported || typeof imported !== 'object' || Array.isArray(imported)) throw new Error('not a settings object');
+      delete imported.webhookUrl;
+      const { settings: cur = {} } = await chrome.storage.local.get('settings');
+      await chrome.storage.local.set({ settings: { ...cur, ...imported } });
+      await chrome.runtime.sendMessage({ type: 'UPDATE_ALARM_INTERVAL', intervalMinutes: imported.intervalMinutes || cur.intervalMinutes || 3 }).catch(() => {});
+      location.reload();
+    } catch (err) {
+      fb.className = 'status-msg error';
+      fb.textContent = `Import failed: ${err.message}`;
+    }
+  });
+
+  // --- Extra saved searches ---
+  (settings.searches || []).forEach(addSearchRow);
+  $('addSearchBtn').addEventListener('click', () => addSearchRow({}));
+
+  function addSearchRow(s) {
+    const row = document.createElement('div');
+    row.className = 'form-row search-row';
+    row.innerHTML = `
+      <input class="input-control s-name" placeholder="Name" value="${escapeHtml(s.name || '')}" style="flex:1">
+      <input class="input-control s-url" placeholder="Upwork search URL" value="${escapeHtml(s.url || '')}" style="flex:3">
+      <input class="input-control s-hr" type="number" min="0" placeholder="$/hr min" value="${s.minHourly || ''}" style="flex:1">
+      <input class="input-control s-fx" type="number" min="0" placeholder="Fixed min" value="${s.minFixed || ''}" style="flex:1">
+      <input class="s-color" type="color" value="${s.color || '#2563eb'}" title="Search colour">
+      <label><input type="checkbox" class="s-notify" ${s.notify === false ? '' : 'checked'}> Alert</label>
+      <button type="button" class="btn btn-secondary s-del">&times;</button>`;
+    row.querySelector('.s-del').addEventListener('click', () => row.remove());
+    extraSearchesEl.appendChild(row);
+  }
+
+  function collectSearches() {
+    return [...extraSearchesEl.querySelectorAll('.search-row')]
+      .map((r, i) => ({
+        name: r.querySelector('.s-name').value.trim() || `Search ${i + 2}`,
+        url: r.querySelector('.s-url').value.trim(),
+        minHourly: parseFloat(r.querySelector('.s-hr').value) || 0,
+        minFixed: parseFloat(r.querySelector('.s-fx').value) || 0,
+        color: r.querySelector('.s-color').value,
+        notify: r.querySelector('.s-notify').checked,
+        enabled: true
+      }))
+      .filter((s) => s.url);
+  }
 
   if (freelancerHeadlineInput) freelancerHeadlineInput.value = settings.freelancerHeadline || '';
   if (freelancerYearsExpInput) freelancerYearsExpInput.value = settings.freelancerYearsExp || '';
@@ -442,8 +562,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const newInterval = parseFloat(intervalMinutesSelect.value) || 3;
     const combinedProfile = selectedSkills.join(', ') || 'Web Development';
 
+    const { settings: latest = settings } = await chrome.storage.local.get('settings');
     const updatedSettings = {
-      ...settings,
+      ...latest,
+      webhookUrl: $('webhookUrl').value.trim(),
+      primaryColor: $('primaryColor').value,
+      snippets: collectSnippets(),
+      blockedClients: blocked,
       selectedSkills: selectedSkills,
       jobProfile: combinedProfile,
       freelancerHeadline: freelancerHeadlineInput ? freelancerHeadlineInput.value.trim() : '',
@@ -452,13 +577,25 @@ document.addEventListener('DOMContentLoaded', async () => {
       searchQuery: selectedSkills.join(' '),
       searchUrl: searchUrlInput.value.trim() || generateSearchUrlFromSkills(selectedSkills),
       intervalMinutes: newInterval,
-      minBudget: parseFloat(minBudgetInput.value) || 0,
+      minBudget: 0,
+      minHourly: parseFloat($('minHourly').value) || 0,
+      minFixed: parseFloat($('minFixed').value) || 0,
+      searches: collectSearches(),
+      excludeKeywords: $('excludeKeywords').value.trim(),
+      excludeCountries: $('excludeCountries').value.trim(),
+      quietHoursEnabled: $('quietHoursEnabled').checked,
+      quietStart: $('quietStart').value || '22:00',
+      quietEnd: $('quietEnd').value || '07:00',
+      dailyAlertCap: parseInt($('dailyAlertCap').value, 10) || 0,
+      minFitScore: parseInt($('minFitScore').value, 10) || 0,
+      connectsPerProposal: parseInt($('connectsPerProposal').value, 10) || 16,
+      monthlyConnectsBudget: parseInt($('monthlyConnectsBudget').value, 10) || 0,
       desktopNotifications: desktopNotificationsCheckbox.checked,
       soundEnabled: soundEnabledCheckbox.checked,
       telegramEnabled: false,
       pauseOnIdle: pauseOnIdleCheckbox.checked,
       jitterEnabled: jitterEnabledCheckbox.checked,
-      monitoringActive: settings.monitoringActive !== false
+      monitoringActive: latest.monitoringActive !== false
     };
 
     await chrome.storage.local.set({ settings: updatedSettings });
