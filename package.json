@@ -1,0 +1,8 @@
+{
+  "name": "job-radar-for-upwork",
+  "private": true,
+  "description": "Job Radar for Upwork Chrome Extension",
+  "scripts": {
+    "test": "node filters.test.js"
+  }
+}
