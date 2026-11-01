@@ -257,6 +257,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('quietStart').value = settings.quietStart || '22:00';
   $('quietEnd').value = settings.quietEnd || '07:00';
   $('dailyAlertCap').value = settings.dailyAlertCap || '';
+  $('minFitScore').value = settings.minFitScore || '';
+  $('connectsPerProposal').value = settings.connectsPerProposal ?? 16;
+  $('monthlyConnectsBudget').value = settings.monthlyConnectsBudget || '';
 
   // --- Extra saved searches ---
   (settings.searches || []).forEach(addSearchRow);
@@ -501,6 +504,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       quietStart: $('quietStart').value || '22:00',
       quietEnd: $('quietEnd').value || '07:00',
       dailyAlertCap: parseInt($('dailyAlertCap').value, 10) || 0,
+      minFitScore: parseInt($('minFitScore').value, 10) || 0,
+      connectsPerProposal: parseInt($('connectsPerProposal').value, 10) || 16,
+      monthlyConnectsBudget: parseInt($('monthlyConnectsBudget').value, 10) || 0,
       desktopNotifications: desktopNotificationsCheckbox.checked,
       soundEnabled: soundEnabledCheckbox.checked,
       telegramEnabled: false,

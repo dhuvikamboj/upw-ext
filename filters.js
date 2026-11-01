@@ -37,6 +37,53 @@ function inQuietHours({ quietHoursEnabled, quietStart, quietEnd } = {}, date = n
   return a < b ? now >= a && now < b : now >= a || now < b;
 }
 
+// Pulls posted-time, proposal count (upper bound) and connects cost out of a job card's text.
+function parseJobMeta(text, now = Date.now()) {
+  const t = text || '';
+  const meta = {};
+  const p = t.match(/posted\s+(?:(\d+)\s+(second|minute|hour|day|week|month)s?\s+ago|(yesterday|last week|last month)|(just now))/i);
+  if (p) {
+    const unitMs = { second: 1e3, minute: 6e4, hour: 36e5, day: 864e5, week: 6048e5, month: 2592e6 };
+    const ago = p[1] ? p[1] * unitMs[p[2].toLowerCase()]
+      : p[3] ? { yesterday: 864e5, 'last week': 6048e5, 'last month': 2592e6 }[p[3].toLowerCase()] : 0;
+    meta.postedAt = now - ago;
+  }
+  const pr = t.match(/proposals?:?\s*(?:less than\s*(\d+)|(\d+)\s*(?:to|-)\s*(\d+)|(\d+)\+)/i);
+  if (pr) meta.proposals = Number(pr[1] || pr[3] || pr[4]);
+  const c = t.match(/(\d+)\s*connects?\b/i) || t.match(/connects?:?\s*(\d+)/i);
+  if (c) meta.connects = Number(c[1]);
+  return meta;
+}
+
+// 0-100 fit: skills 40, budget 20, competition 20, recency 20. Unknown signals score neutral (0.5).
+function scoreJob(job, settings = {}, now = Date.now()) {
+  const meta = parseJobMeta(job.cardText, job.detectedAt || now);
+  const postedAt = job.postedAt || meta.postedAt || job.detectedAt || now;
+  const proposals = job.proposals ?? meta.proposals;
+
+  const mine = splitList(settings.selectedSkills);
+  const text = [job.title, job.description, (job.skillsRequired || []).join(' ')].join(' ').toLowerCase();
+  const skills = mine.length ? Math.min(1, mine.filter((k) => text.includes(k)).length / 2) : 0.5;
+
+  const { type, max } = parseBudget(job.budget);
+  const budget = type === 'hourly' ? Math.min(1, max / 50) : type === 'fixed' ? Math.min(1, max / 1000) : 0.5;
+
+  const competition = proposals == null ? 0.5 : Math.max(0, Math.min(1, 1 - (proposals - 5) / 45));
+  const recency = 1 / (1 + Math.max(0, now - postedAt) / 6e4 / 60);
+
+  const score = Math.round(40 * skills + 20 * budget + 20 * competition + 20 * recency);
+  const label = score >= 70 ? 'Strong fit' : score >= 45 ? 'Decent fit' : 'Weak fit';
+  return { score, label, proposals, connects: job.connects ?? meta.connects, postedAt };
+}
+
+// Sum of connects on jobs marked Applied in the same calendar month as `now`.
+function connectsSpentThisMonth(history = [], now = new Date()) {
+  return history
+    .filter((h) => h.action === 'Applied' && new Date(h.actionTimestamp).getMonth() === now.getMonth()
+      && new Date(h.actionTimestamp).getFullYear() === now.getFullYear())
+    .reduce((sum, h) => sum + (h.connects || 0), 0);
+}
+
 if (typeof module !== 'undefined') {
-  module.exports = { parseBudget, passesBudget, isExcluded, inQuietHours };
+  module.exports = { parseBudget, passesBudget, isExcluded, inQuietHours, parseJobMeta, scoreJob, connectsSpentThisMonth };
 }

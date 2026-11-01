@@ -151,6 +151,20 @@
             <input type="number" id="dailyAlertCap" class="input-control" min="0" placeholder="0 (Unlimited)">
           </div>
         </div>
+        <div class="form-row">
+          <div class="form-group half">
+            <label for="minFitScore">Min fit score to alert (0-100)</label>
+            <input type="number" id="minFitScore" class="input-control" min="0" max="100" placeholder="0 (Alert on all)">
+            <small class="hint">Fit = skills 40 + budget 20 + competition 20 + recency 20. Low-fit jobs still appear in the popup.</small>
+          </div>
+          <div class="form-group half">
+            <label for="connectsPerProposal">Default Connects per proposal</label>
+            <input type="number" id="connectsPerProposal" class="input-control" min="0" placeholder="16">
+            <label for="monthlyConnectsBudget" style="margin-top:10px">Monthly Connects budget</label>
+            <input type="number" id="monthlyConnectsBudget" class="input-control" min="0" placeholder="0 (No limit)">
+            <small class="hint">Exact cost is used when you open the job page; otherwise the default (shown with ~).</small>
+          </div>
+        </div>
       </section>
 
       <!-- Section 1.5: Freelancer Proposal Identity & Profile -->

@@ -1,6 +1,6 @@
 // Run: node filters.test.js
 const assert = require('assert');
-const { parseBudget, passesBudget, isExcluded, inQuietHours } = require('./filters');
+const { parseBudget, passesBudget, isExcluded, inQuietHours, parseJobMeta, scoreJob, connectsSpentThisMonth } = require('./filters');
 
 assert.deepStrictEqual(parseBudget('Hourly: $20-$40'), { type: 'hourly', max: 40 });
 assert.deepStrictEqual(parseBudget('Fixed-price: $1,500'), { type: 'fixed', max: 1500 });
@@ -21,5 +21,25 @@ const q = { quietHoursEnabled: true, quietStart: '22:00', quietEnd: '07:00' };
 const at = (h, m = 0) => new Date(2026, 0, 1, h, m);
 assert.ok(inQuietHours(q, at(23)) && inQuietHours(q, at(3)) && !inQuietHours(q, at(7)) && !inQuietHours(q, at(12)));
 assert.ok(!inQuietHours({ ...q, quietHoursEnabled: false }, at(23)));
+
+const NOW = Date.UTC(2026, 0, 15, 12);
+const m = parseJobMeta('Posted 3 minutes ago Proposals: 5 to 10 Send a proposal for: 16 Connects', NOW);
+assert.deepStrictEqual(m, { postedAt: NOW - 180000, proposals: 10, connects: 16 });
+assert.strictEqual(parseJobMeta('Proposals: Less than 5').proposals, 5);
+assert.strictEqual(parseJobMeta('Proposals: 50+').proposals, 50);
+assert.strictEqual(parseJobMeta('Posted yesterday', NOW).postedAt, NOW - 864e5);
+assert.deepStrictEqual(parseJobMeta('nothing here'), {});
+
+const me = { selectedSkills: ['Python', 'React'] };
+const hot = scoreJob({ title: 'Python and React app', budget: 'Hourly: $50-$80', cardText: 'Posted 2 minutes ago Proposals: Less than 5', detectedAt: NOW }, me, NOW);
+const cold = scoreJob({ title: 'Logo design', budget: '$20', cardText: 'Posted 2 days ago Proposals: 50+', detectedAt: NOW }, me, NOW);
+assert.ok(hot.score >= 90 && hot.label === 'Strong fit', JSON.stringify(hot));
+assert.ok(cold.score < 25 && cold.label === 'Weak fit', JSON.stringify(cold));
+assert.strictEqual(scoreJob({ title: 'x' }, {}, NOW).score, 60); // all-unknown: 20+10+10 neutral + 20 fresh
+
+const jan = (d) => new Date(2026, 0, d).getTime();
+const hist = [{ action: 'Applied', connects: 16, actionTimestamp: jan(3) }, { action: 'Applied', connects: 8, actionTimestamp: jan(9) },
+  { action: 'Saved', connects: 16, actionTimestamp: jan(9) }, { action: 'Applied', connects: 16, actionTimestamp: new Date(2025, 11, 30).getTime() }];
+assert.strictEqual(connectsSpentThisMonth(hist, new Date(2026, 0, 15)), 24);
 
 console.log('filters ok');

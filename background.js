@@ -20,6 +20,9 @@ const DEFAULT_SETTINGS = {
   quietStart: '22:00',
   quietEnd: '07:00',
   dailyAlertCap: 0,
+  minFitScore: 0,
+  connectsPerProposal: 16,
+  monthlyConnectsBudget: 0,
   soundEnabled: true,
   desktopNotifications: true,
   telegramEnabled: false,
@@ -240,6 +243,7 @@ function parseJobsFromHtmlString(html) {
         url: rawUrl.startsWith('http') ? rawUrl : `https://www.upwork.com${rawUrl}`,
         budget: budget,
         client: 'Upwork Client',
+        cardText: contextWindow.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
         detectedAt: Date.now(),
         applied: false
       });
@@ -302,7 +306,7 @@ async function processNewJobs(incomingJobs, settings, search = getSearches(setti
     // Only dispatch desktop notification if brand new (never notified before)
     if (!notifiedJobIds.has(job.id)) {
       notifiedJobIds.add(job.id);
-      if (search.notify !== false) newlyNotifiedJobs.push(job);
+      if (search.notify !== false && scoreJob(job, settings).score >= (settings.minFitScore || 0)) newlyNotifiedJobs.push(job);
     }
   }
 
@@ -329,14 +333,14 @@ async function processNewJobs(incomingJobs, settings, search = getSearches(setti
   const cap = settings.dailyAlertCap > 0 ? settings.dailyAlertCap : Infinity;
   for (const job of newlyNotifiedJobs.slice(0, 2)) {
     if (alertCount.count >= cap) break;
-    dispatchDesktopNotification(job);
+    dispatchDesktopNotification(job, settings);
     alertCount.count++;
   }
   await chrome.storage.local.set({ alertCount });
 }
 
 // Native Chrome Notification (Hardened with absolute icon URL and Mac support)
-function dispatchDesktopNotification(job) {
+function dispatchDesktopNotification(job, settings = {}) {
   const notifId = `upwork_${job.id}_${Date.now()}`;
   const iconPath = chrome.runtime.getURL('icons/icon128.png');
 
@@ -346,7 +350,7 @@ function dispatchDesktopNotification(job) {
       type: 'basic',
       iconUrl: iconPath,
       title: `🚨 ${job.title.substring(0, 48)}`,
-      message: `💰 Budget: ${job.budget} | Client: ${job.client}\nClick to view and apply!`,
+      message: `💰 ${job.budget} | Fit ${scoreJob(job, settings).score}% | ${job.client}\nClick to view and apply!`,
       priority: 2,
       silent: false
     },
@@ -396,6 +400,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       case 'TRIGGER_MANUAL_CHECK': {
         const { settings = DEFAULT_SETTINGS } = await chrome.storage.local.get('settings');
         await runCycle(settings);
+        sendResponse({ success: true });
+        break;
+      }
+
+      case 'JOB_CONNECTS': {
+        const { jobsToday = [] } = await chrome.storage.local.get('jobsToday');
+        await chrome.storage.local.set({
+          jobsToday: jobsToday.map((j) => (j.id === message.id ? { ...j, connects: message.connects } : j))
+        });
         sendResponse({ success: true });
         break;
       }
