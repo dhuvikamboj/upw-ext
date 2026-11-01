@@ -104,9 +104,51 @@
           </div>
 
           <div class="form-group half">
-            <label for="minBudget">Minimum Hourly Rate ($/hr)</label>
-            <input type="number" id="minBudget" name="minBudget" class="input-control" min="0" max="500" placeholder="0 (Any budget)">
-            <small class="hint">Filter out jobs paying less than this hourly rate.</small>
+            <label for="minHourly">Min Hourly Rate ($/hr)</label>
+            <input type="number" id="minHourly" class="input-control" min="0" max="500" placeholder="0 (Any)">
+            <label for="minFixed" style="margin-top:10px">Min Fixed-Price Budget ($)</label>
+            <input type="number" id="minFixed" class="input-control" min="0" placeholder="0 (Any)">
+            <small class="hint">Jobs below these are hidden. Jobs with no stated budget always pass.</small>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 1.2: Extra searches, filters, quiet hours -->
+      <section class="card">
+        <div class="card-header">
+          <span class="card-icon">🔎</span>
+          <h2>Extra Saved Searches</h2>
+        </div>
+        <div id="extraSearches"></div>
+        <button type="button" id="addSearchBtn" class="btn btn-secondary">+ Add search</button>
+        <small class="hint">Each search is scanned every cycle with its own budget floors. Untick "Alert" to list its jobs in the popup without notifying.</small>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <span class="card-icon">🚫</span>
+          <h2>Filters & Alert Limits</h2>
+        </div>
+        <div class="form-group">
+          <label for="excludeKeywords">Excluded keywords (comma-separated)</label>
+          <input type="text" id="excludeKeywords" class="input-control" placeholder="wordpress, php, wix">
+          <small class="hint">Skips jobs whose title, description or skills contain any of these.</small>
+        </div>
+        <div class="form-group">
+          <label for="excludeCountries">Excluded client countries (comma-separated)</label>
+          <input type="text" id="excludeCountries" class="input-control" placeholder="india, pakistan">
+          <small class="hint">Only applies when Upwork exposes the client's country for that job.</small>
+        </div>
+        <div class="form-row">
+          <div class="form-group half">
+            <label><input type="checkbox" id="quietHoursEnabled"> Quiet hours (no desktop alerts)</label>
+            <input type="time" id="quietStart" class="input-control" value="22:00">
+            <input type="time" id="quietEnd" class="input-control" value="07:00" style="margin-top:6px">
+            <small class="hint">Jobs still appear in the popup.</small>
+          </div>
+          <div class="form-group half">
+            <label for="dailyAlertCap">Daily alert cap</label>
+            <input type="number" id="dailyAlertCap" class="input-control" min="0" placeholder="0 (Unlimited)">
           </div>
         </div>
       </section>

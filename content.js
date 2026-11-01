@@ -149,6 +149,7 @@ function extractJobsFromDocument(doc) {
         client: clientSummary,
         description: description || `Scope: ${title}`,
         skillsRequired: reqSkills,
+        country: (cardContainer?.querySelector('[data-test="location"]')?.textContent || '').trim(),
         detectedAt: Date.now(),
         applied: false
       });
@@ -183,6 +184,7 @@ function extractJobsFromJson(root) {
         url: `https://www.upwork.com/jobs/${node.ciphertext}`,
         budget: node.amount?.amount ? `$${node.amount.amount}` : (node.hourlyBudgetText || 'Competitive'),
         client: node.client?.totalSpent ? `$${Math.round(node.client.totalSpent)} spent` : 'Client',
+        country: node.client?.location?.country || '',
         detectedAt: Date.now(),
         applied: false
       });
