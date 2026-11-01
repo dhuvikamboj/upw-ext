@@ -19,8 +19,24 @@ function passesBudget(job, { minHourly = 0, minFixed = 0 } = {}) {
 const splitList = (v) => (Array.isArray(v) ? v : String(v || '').split(','))
   .map((s) => s.trim().toLowerCase()).filter(Boolean);
 
+// Upwork hides client names, so the best stable identity is spent + rating + country.
+// Returns '' when the job lacks a specific "$X spent" figure (too vague to block on).
+function clientFingerprint(job) {
+  const spent = ((job.client || '').match(/\$[\d,.]+[kKmM]?\s*spent/i) || [])[0];
+  if (!spent) return '';
+  const rating = ((job.client || '').match(/\d\.\d★/) || [''])[0];
+  return [spent, rating, job.country || ''].join('|').replace(/\s+/g, ' ').toLowerCase();
+}
+
+// Slack incoming webhooks take {text}; Discord takes {content}.
+function webhookBody(url, text) {
+  return /hooks\.slack\.com/i.test(url || '') ? { text } : { content: text.slice(0, 1900) };
+}
+
 // Excluded keywords match title/description/skills; excluded countries match job.country only.
-function isExcluded(job, { excludeKeywords = [], excludeCountries = [] } = {}) {
+function isExcluded(job, { excludeKeywords = [], excludeCountries = [], blockedClients = [] } = {}) {
+  const fp = clientFingerprint(job);
+  if (fp && blockedClients.some((b) => b.fp === fp)) return true;
   const text = [job.title, job.description, (job.skillsRequired || []).join(' ')].join(' ').toLowerCase();
   if (splitList(excludeKeywords).some((k) => text.includes(k))) return true;
   const country = (job.country || '').toLowerCase();
@@ -85,5 +101,5 @@ function connectsSpentThisMonth(history = [], now = new Date()) {
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { parseBudget, passesBudget, isExcluded, inQuietHours, parseJobMeta, scoreJob, connectsSpentThisMonth };
+  module.exports = { clientFingerprint, webhookBody, parseBudget, passesBudget, isExcluded, inQuietHours, parseJobMeta, scoreJob, connectsSpentThisMonth };
 }

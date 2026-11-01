@@ -15,6 +15,39 @@ document.addEventListener('DOMContentLoaded', async () => {
   const jobCountBadge = document.getElementById('jobCountBadge');
   const clearHistoryBtn = document.getElementById('clearHistoryBtn');
   const connectsTracker = document.getElementById('connectsTracker');
+  const snoozeSelect = document.getElementById('snoozeSelect');
+  const snoozeStatus = document.getElementById('snoozeStatus');
+  const resumeBtn = document.getElementById('resumeBtn');
+  const snippetBox = document.getElementById('snippetBox');
+  const snippetSelect = document.getElementById('snippetSelect');
+  let snippets = [];
+
+  document.getElementById('snippetCopyBtn').addEventListener('click', async () => {
+    const sn = snippets[snippetSelect.value];
+    if (sn) {
+      await navigator.clipboard.writeText(sn.text);
+      modalCopiedToast.textContent = '✓ Snippet copied!';
+      modalCopiedToast.style.display = 'block';
+      setTimeout(() => { modalCopiedToast.style.display = 'none'; }, 2500);
+    }
+  });
+
+  snoozeSelect.addEventListener('change', async () => {
+    const v = snoozeSelect.value;
+    if (!v) return;
+    let until;
+    if (v === 'tomorrow') {
+      until = new Date();
+      until.setDate(until.getDate() + 1);
+      until.setHours(7, 0, 0, 0);
+      until = until.getTime();
+    } else {
+      until = Date.now() + Number(v) * 60000;
+    }
+    await chrome.storage.local.set({ snoozeUntil: until });
+    snoozeSelect.value = '';
+  });
+  resumeBtn.addEventListener('click', () => chrome.storage.local.remove('snoozeUntil'));
 
   // AI Modal elements
   const aiModal = document.getElementById('aiModal');
@@ -54,7 +87,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Real-time listener for background updates
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && (changes.jobsToday || changes.settings || changes.lastCheckInfo)) {
+    if (area === 'local' && (changes.jobsToday || changes.settings || changes.lastCheckInfo || changes.snoozeUntil || changes.applicationHistory)) {
       reloadState();
     }
   });
@@ -220,8 +253,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function reloadState() {
-    const { settings = {}, jobsToday = [], lastCheckInfo = {}, applicationHistory = [] } =
-      await chrome.storage.local.get(['settings', 'jobsToday', 'lastCheckInfo', 'applicationHistory']);
+    const { settings = {}, jobsToday = [], lastCheckInfo = {}, applicationHistory = [], snoozeUntil = 0 } =
+      await chrome.storage.local.get(['settings', 'jobsToday', 'lastCheckInfo', 'applicationHistory', 'snoozeUntil']);
+
+    const snoozed = snoozeUntil > Date.now();
+    snoozeStatus.textContent = snoozed
+      ? `Alerts snoozed until ${new Date(snoozeUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+      : '';
+    resumeBtn.style.display = snoozed ? '' : 'none';
+    snoozeSelect.style.display = snoozed ? 'none' : '';
+    snippets = settings.snippets || [];
 
     const spent = connectsSpentThisMonth(applicationHistory);
     const budget = settings.monthlyConnectsBudget || 0;
@@ -275,6 +316,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const card = document.createElement('div');
       card.className = `job-card ${job.applied ? 'applied' : ''}`;
       card.dataset.id = job.id;
+      if (job.searchColor) card.style.borderLeft = `4px solid ${job.searchColor}`;
 
       const timeAgo = formatTimeAgo(job.detectedAt);
       const fit = scoreJob(job, settings);
@@ -299,6 +341,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ${job.applied ? '✓ Applied' : '○ Mark Applied'}
           </button>
           <div style="display: flex; gap: 6px; align-items: center;">
+            <button class="block-btn" title="Block this client (matched by spend + rating + country)">🚫</button>
             <button class="ai-bid-btn" title="Client Risk Score & AI Proposal Prompt">
               🧠 AI Bid Prompt
             </button>
@@ -318,6 +361,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
       }
 
+      card.querySelector('.block-btn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await blockClient(job);
+      });
+
       // Apply link clicked -> Record in applicationHistory
       const applyBtn = card.querySelector('.apply-btn');
       applyBtn.addEventListener('click', async () => {
@@ -332,6 +380,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
 
       jobList.appendChild(card);
+    });
+  }
+
+  async function blockClient(job) {
+    const fp = clientFingerprint(job);
+    if (!fp) {
+      alert('Not enough client info on this job to block it reliably (needs a "$ spent" figure).');
+      return;
+    }
+    if (!confirm(`Hide all future jobs from clients matching:\n${fp}\n\nUpwork hides client names, so this match is approximate.`)) return;
+    const { settings = {}, jobsToday = [] } = await chrome.storage.local.get(['settings', 'jobsToday']);
+    const blockedClients = [...(settings.blockedClients || [])];
+    if (!blockedClients.some((b) => b.fp === fp)) blockedClients.push({ fp, label: fp.replace(/\|/g, ' · ') });
+    await chrome.storage.local.set({
+      settings: { ...settings, blockedClients },
+      jobsToday: jobsToday.filter((j) => clientFingerprint(j) !== fp)
     });
   }
 
@@ -405,6 +469,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     modalPromptText.value = prompt;
     modalCopiedToast.style.display = 'none';
+    modalCopiedToast.textContent = '✓ Copied to clipboard! Ready to paste into ChatGPT / Claude.';
+    snippetBox.style.display = snippets.length ? '' : 'none';
+    snippetSelect.innerHTML = snippets.map((s, i) => `<option value="${i}">${escapeHtml(s.name)}</option>`).join('');
     aiModal.style.display = 'flex';
   }
 

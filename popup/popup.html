@@ -62,6 +62,17 @@
     </div>
 
     <div class="live-status-row">
+      <select id="snoozeSelect" class="snooze-select" title="Pause alerts; jobs still appear below">
+        <option value="">😴 Snooze alerts…</option>
+        <option value="60">1 hour</option>
+        <option value="240">4 hours</option>
+        <option value="tomorrow">Until tomorrow 7am</option>
+      </select>
+      <span id="snoozeStatus" class="live-status-text"></span>
+      <button id="resumeBtn" class="text-link" style="display:none">Resume</button>
+    </div>
+
+    <div class="live-status-row">
       <span id="connectsTracker" class="live-status-text" title="Connects spent on jobs marked Applied this month"></span>
     </div>
 
@@ -120,6 +131,14 @@
             <span id="modalTrustScore" class="trust-score-badge">85% Safe</span>
           </div>
           <div id="modalTrustFlags" class="trust-flags-container"></div>
+        </div>
+
+        <div class="ai-prompt-box" id="snippetBox" style="display:none">
+          <div class="prompt-box-header">
+            <span class="prompt-title">Saved snippet:</span>
+            <button type="button" id="snippetCopyBtn" class="copy-btn-action">📋 Copy Snippet</button>
+          </div>
+          <select id="snippetSelect" class="snooze-select"></select>
         </div>
 
         <!-- Copy AI Prompt Action Box -->

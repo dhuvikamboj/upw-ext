@@ -16,6 +16,13 @@
 - Excluded keywords (title, description, skills) and excluded client countries.
 - Quiet hours (can wrap past midnight), a daily alert cap and a minimum fit score. These only silence alerts; jobs still appear in the popup.
 
+**Alerts and controls**
+- Discord or Slack webhook alerts in addition to desktop notifications (same quiet hours, snooze and daily cap).
+- Snooze from the popup: 1 hour, 4 hours or until tomorrow 7am. Jobs still appear in the feed.
+- Per-search colour on popup cards and the toolbar badge, and the search name in notifications.
+- Block a client with one click (matched by spend + rating + country, since Upwork hides client names).
+- Shortcuts: `Alt+Shift+S` scan now, `Alt+Shift+J` open the latest job (rebind at `chrome://extensions/shortcuts`). Both are also in the toolbar icon's right-click menu.
+
 **Job intelligence**
 - **Fit score (0-100):** skills match (40), budget (20), competition from proposal count (20) and how recently it was posted (20). Shown on every popup card and in notifications.
 - **Connects:** cost shown per job (exact once you open the job page, otherwise your default estimate), plus a monthly Connects spend tracker with an optional budget.
@@ -24,6 +31,8 @@
 
 **Tracking**
 - Popup feed of detected jobs with one-click "Mark Applied".
+- Saved proposal snippets, copied from the AI Bid Prompt window.
+- Export and import settings as JSON (the webhook URL is left out of exports).
 - Analytics dashboard (scanned vs. applied, average rate, verified clients) with PDF export.
 
 **Planned:** Telegram mobile alerts (the settings fields exist but delivery is not built yet).
@@ -47,7 +56,7 @@
 ```text
 manifest.json        Manifest V3 config
 background.js        Service worker: alarms, multi-search scanning, filtering, notifications
-filters.js           Pure helpers: budget/keyword/country filters, quiet hours, fit score, Connects spend
+filters.js           Pure helpers: budget/keyword/country/client filters, quiet hours, fit score, Connects spend, webhook payloads
 filters.test.js      Self-check for filters.js (node filters.test.js)
 content.js           Upwork page script: job extraction, on-page risk card, Connects capture
 ai_analyzer.js       Client trust scoring and AI proposal prompt builder
@@ -64,6 +73,10 @@ node filters.test.js   # runs the filter, scoring and spend checks
 ```
 
 Upwork's page markup changes often. If posted time, proposal count, Connects or country stop being detected, update the selectors and regexes in `content.js` (and the matching extractor in `popup/popup.js`).
+
+## Permissions
+
+`storage`, `alarms`, `notifications`, `idle`, `tabs`, `scripting`, `activeTab`, `contextMenus`, plus host access to `upwork.com` and the Discord/Slack webhook endpoints (used only if you set a webhook URL).
 
 ## Privacy and safety
 

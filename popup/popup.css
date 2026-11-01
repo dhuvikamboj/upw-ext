@@ -718,3 +718,24 @@ input:checked + .slider:before {
 @keyframes spin {
   100% { transform: rotate(360deg); }
 }
+
+.snooze-select {
+  font-size: 12px;
+  padding: 3px 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: inherit;
+}
+
+.block-btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  opacity: 0.6;
+}
+
+.block-btn:hover {
+  opacity: 1;
+}

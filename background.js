@@ -23,6 +23,10 @@ const DEFAULT_SETTINGS = {
   minFitScore: 0,
   connectsPerProposal: 16,
   monthlyConnectsBudget: 0,
+  webhookUrl: '',
+  primaryColor: '#14a800',
+  blockedClients: [],
+  snippets: [],
   soundEnabled: true,
   desktopNotifications: true,
   telegramEnabled: false,
@@ -115,6 +119,7 @@ function getSearches(settings) {
     url: settings.searchUrl,
     minHourly: settings.minHourly ?? settings.minBudget ?? 0,
     minFixed: settings.minFixed ?? 0,
+    color: settings.primaryColor,
     notify: true
   };
   return [primary, ...(settings.searches || []).filter((s) => s.enabled !== false && s.url)];
@@ -296,6 +301,7 @@ async function processNewJobs(incomingJobs, settings, search = getSearches(setti
 
     if (!passesBudget(job, search) || isExcluded(job, settings)) continue;
     job.search = search.name;
+    job.searchColor = search.color || '#14a800';
 
     // ALWAYS ensure job is included in jobsToday list so user sees it in popup!
     if (!existingIdSet.has(job.id)) {
@@ -326,17 +332,40 @@ async function processNewJobs(incomingJobs, settings, search = getSearches(setti
   await updateBadge(unviewedCount);
 
   // Quiet hours and daily cap gate alerts only; jobs still land in the popup list
-  if (!settings.desktopNotifications || inQuietHours(settings)) return;
+  const { snoozeUntil = 0 } = await chrome.storage.local.get('snoozeUntil');
+  if (inQuietHours(settings) || snoozeUntil > Date.now()) return;
+  if (!settings.desktopNotifications && !settings.webhookUrl) return;
   const today = new Date().toDateString();
   let { alertCount } = await chrome.storage.local.get('alertCount');
   if (!alertCount || alertCount.date !== today) alertCount = { date: today, count: 0 };
   const cap = settings.dailyAlertCap > 0 ? settings.dailyAlertCap : Infinity;
   for (const job of newlyNotifiedJobs.slice(0, 2)) {
     if (alertCount.count >= cap) break;
-    dispatchDesktopNotification(job, settings);
+    if (settings.desktopNotifications) dispatchDesktopNotification(job, settings);
+    if (settings.webhookUrl) await sendWebhook(settings.webhookUrl, job, settings);
     alertCount.count++;
   }
   await chrome.storage.local.set({ alertCount });
+  // Badge takes the colour of the search that just fired
+  const last = newlyNotifiedJobs[0];
+  if (last && last.searchColor) await chrome.action.setBadgeBackgroundColor({ color: last.searchColor });
+}
+
+async function sendWebhook(url, job, settings) {
+  const text = `🚨 ${job.title}\n💰 ${job.budget} | Fit ${scoreJob(job, settings).score}% | ${job.client}` +
+    `${job.search ? ` | ${job.search}` : ''}\n${job.url}`;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(webhookBody(url, text))
+    });
+    if (!res.ok) console.warn('[Upwork Radar] Webhook HTTP', res.status);
+    return res.ok;
+  } catch (err) {
+    console.warn('[Upwork Radar] Webhook error:', err.message);
+    return false;
+  }
 }
 
 // Native Chrome Notification (Hardened with absolute icon URL and Mac support)
@@ -349,7 +378,7 @@ function dispatchDesktopNotification(job, settings = {}) {
     {
       type: 'basic',
       iconUrl: iconPath,
-      title: `🚨 ${job.title.substring(0, 48)}`,
+      title: `🚨 ${job.search ? `[${job.search}] ` : ''}${job.title.substring(0, 40)}`,
       message: `💰 ${job.budget} | Fit ${scoreJob(job, settings).score}% | ${job.client}\nClick to view and apply!`,
       priority: 2,
       silent: false
@@ -422,6 +451,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         break;
       }
 
+      case 'TEST_WEBHOOK': {
+        const ok = await sendWebhook(message.url, {
+          title: 'Job Radar webhook works', budget: 'Test', client: 'Test alert', url: 'https://www.upwork.com'
+        }, {});
+        sendResponse({ success: ok });
+        break;
+      }
+
       case 'TEST_NOTIFICATION': {
         dispatchDesktopNotification({
           id: `verify_${Date.now()}`,
@@ -455,3 +492,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   })();
   return true;
 });
+
+// --- Shortcuts & context menu ---
+
+async function scanNow() {
+  const { settings = DEFAULT_SETTINGS } = await chrome.storage.local.get('settings');
+  await performMonitoringCheck(settings);
+}
+
+async function openLatestJob() {
+  const { jobsToday = [] } = await chrome.storage.local.get('jobsToday');
+  if (jobsToday[0]) await chrome.tabs.create({ url: jobsToday[0].url });
+}
+
+const MENU_ACTIONS = { radar_scan: scanNow, radar_latest: openLatestJob };
+const COMMAND_ACTIONS = { 'scan-now': scanNow, 'open-latest': openLatestJob };
+
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({ id: 'radar_scan', title: 'Scan Upwork now', contexts: ['action'] });
+    chrome.contextMenus.create({ id: 'radar_latest', title: 'Open latest matching job', contexts: ['action'] });
+  });
+});
+chrome.contextMenus.onClicked.addListener((info) => MENU_ACTIONS[info.menuItemId]?.());
+chrome.commands.onCommand.addListener((cmd) => COMMAND_ACTIONS[cmd]?.());

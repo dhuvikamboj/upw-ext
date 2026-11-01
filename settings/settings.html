@@ -167,6 +167,55 @@
         </div>
       </section>
 
+      <section class="card">
+        <div class="card-header">
+          <span class="card-icon">🔔</span>
+          <h2>Webhook Alerts (Discord / Slack)</h2>
+        </div>
+        <div class="form-group">
+          <label for="webhookUrl">Webhook URL</label>
+          <input type="password" id="webhookUrl" class="input-control" placeholder="https://discord.com/api/webhooks/... or https://hooks.slack.com/services/..." autocomplete="off">
+          <small class="hint">New-job alerts are posted here too. Follows quiet hours, snooze and the daily cap. Not included in settings export.</small>
+        </div>
+        <button type="button" id="testWebhookBtn" class="btn btn-secondary">Send test message</button>
+        <span id="testWebhookFeedback" class="status-msg"></span>
+        <div class="form-group" style="margin-top:14px">
+          <label for="primaryColor">Primary search colour</label>
+          <input type="color" id="primaryColor" value="#14a800">
+          <small class="hint">Colours the popup card edge and toolbar badge for that search. Extra searches have their own colour.</small>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <span class="card-icon">📝</span>
+          <h2>Proposal Snippets</h2>
+        </div>
+        <div id="snippetRows"></div>
+        <button type="button" id="addSnippetBtn" class="btn btn-secondary">+ Add snippet</button>
+        <small class="hint">Reusable text (intro, rates, availability). Copy from the AI Bid Prompt window in the popup.</small>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <span class="card-icon">🚫</span>
+          <h2>Blocked Clients</h2>
+        </div>
+        <div id="blockedList"></div>
+        <small class="hint">Upwork hides client names, so a client is matched by spend + rating + country. This is approximate; unblock here if it hides too much.</small>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <span class="card-icon">💾</span>
+          <h2>Backup</h2>
+        </div>
+        <button type="button" id="exportBtn" class="btn btn-secondary">Export settings</button>
+        <button type="button" id="importBtn" class="btn btn-secondary">Import settings</button>
+        <input type="file" id="importFile" accept="application/json" style="display:none">
+        <span id="backupFeedback" class="status-msg"></span>
+      </section>
+
       <!-- Section 1.5: Freelancer Proposal Identity & Profile -->
       <section class="card">
         <div class="card-header">
