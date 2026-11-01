@@ -1,6 +1,6 @@
 // Run: node filters.test.js
 const assert = require('assert');
-const { parseBudget, passesBudget, isExcluded, inQuietHours, parseJobMeta, scoreJob, connectsSpentThisMonth } = require('./filters');
+const { clientFingerprint, webhookBody, parseBudget, passesBudget, isExcluded, inQuietHours, parseJobMeta, scoreJob, connectsSpentThisMonth } = require('./filters');
 
 assert.deepStrictEqual(parseBudget('Hourly: $20-$40'), { type: 'hourly', max: 40 });
 assert.deepStrictEqual(parseBudget('Fixed-price: $1,500'), { type: 'fixed', max: 1500 });
@@ -41,5 +41,13 @@ const jan = (d) => new Date(2026, 0, d).getTime();
 const hist = [{ action: 'Applied', connects: 16, actionTimestamp: jan(3) }, { action: 'Applied', connects: 8, actionTimestamp: jan(9) },
   { action: 'Saved', connects: 16, actionTimestamp: jan(9) }, { action: 'Applied', connects: 16, actionTimestamp: new Date(2025, 11, 30).getTime() }];
 assert.strictEqual(connectsSpentThisMonth(hist, new Date(2026, 0, 15)), 24);
+
+const c1 = { client: 'Verified Payment • 4.9★ • $12K spent', country: 'Canada' };
+assert.strictEqual(clientFingerprint(c1), '$12k spent|4.9★|canada');
+assert.strictEqual(clientFingerprint({ client: 'Client' }), '');
+assert.ok(isExcluded({ title: 'x', ...c1 }, { blockedClients: [{ fp: '$12k spent|4.9★|canada' }] }));
+assert.ok(!isExcluded({ title: 'x', client: 'Client' }, { blockedClients: [{ fp: '' }] })); // vague clients never blocked
+assert.deepStrictEqual(webhookBody('https://hooks.slack.com/services/x', 'hi'), { text: 'hi' });
+assert.deepStrictEqual(webhookBody('https://discord.com/api/webhooks/1/x', 'hi'), { content: 'hi' });
 
 console.log('filters ok');
