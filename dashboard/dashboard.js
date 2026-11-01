@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           noDataBanner.style.display = 'block';
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }
-        alert('⚠️ Hi there! There is no data for now to export.\n\nPlease scan jobs on Upwork or mark jobs as applied before generating your PDF report.');
+        alert('Hi there! There is no data for now to export.\n\nPlease scan jobs on Upwork or mark jobs as applied before generating your PDF report.');
         return;
       }
 
@@ -205,13 +205,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         return `
           <tr>
-            <td style="color: #64748b; font-size: 12px;">${dateStr}</td>
+            <td class="cell-date">${dateStr}</td>
             <td>
               <a href="${escapeHtml(item.url)}" target="_blank" class="job-cell-title" title="${escapeHtml(item.title)}">
                 ${escapeHtml(item.title)}
               </a>
             </td>
-            <td><strong style="color: #047857;">${escapeHtml(item.budget || 'Competitive')}</strong></td>
+            <td><strong>${escapeHtml(item.budget || 'Competitive')}</strong></td>
             <td>${escapeHtml(item.client || 'Client')}</td>
             <td>
               <span class="status-pill ${actionClass}">

@@ -18,6 +18,8 @@
 
 **Alerts and controls**
 - Discord or Slack webhook alerts in addition to desktop notifications (same quiet hours, snooze and daily cap).
+- Choose your alert sound (chime, bell, radar ping, cash register, soft pop, or the system sound) and volume, with a preview button.
+- A live indicator in the popup: Upwork tab open and synced, or background polling.
 - Snooze from the popup: 1 hour, 4 hours or until tomorrow 7am. Jobs still appear in the feed.
 - Per-search colour on popup cards and the toolbar badge, and the search name in notifications.
 - Block a client with one click (matched by spend + rating + country, since Upwork hides client names).
@@ -26,6 +28,7 @@
 **Job intelligence**
 - **Fit score (0-100):** skills match (40), budget (20), competition from proposal count (20) and how recently it was posted (20). Shown on every popup card and in notifications.
 - **Connects:** cost shown per job (exact once you open the job page, otherwise your default estimate), plus a monthly Connects spend tracker with an optional budget.
+- **Buyer label:** Active Buyer, Window Shopper or Ghost Job, from the client's hire rate, jobs posted, hires and spend. Shown on job pages and, once you've opened a job, on its popup card.
 - **Client risk score** on job pages: suspended clients, rating, payment verification and spend.
 - **AI proposal prompt:** a copy-paste prompt for ChatGPT, Claude or Gemini, tailored to the job and your profile.
 - **Built-in AI (bring your own key, optional):** add your own API key in Settings and the AI Bid Prompt window gets **Generate proposal** and **Quick analysis** (apply/maybe/skip verdict, red flags, suggested bid). Supports OpenAI, Anthropic and any OpenAI-compatible endpoint (OpenRouter, Groq, Gemini's OpenAI endpoint, local Ollama). It only runs when you click, and sends that one job plus your profile to your chosen provider. There is no developer-run server.
@@ -63,6 +66,7 @@ content.js           Upwork page script: job extraction, on-page risk card, Conn
 ai_analyzer.js       Client trust scoring, proposal and analysis prompt builders
 ai_client.js         Bring-your-own-key LLM client (OpenAI / Anthropic / compatible)
 ai_client.test.js    Self-check for ai_client.js
+sounds.js            Synthesized alert sounds; offscreen.html/js play them for the service worker
 popup/               Toolbar popup (feed, fit score, Connects tracker)
 settings/            Options page
 dashboard/           Analytics and PDF export
@@ -80,7 +84,7 @@ Upwork's page markup changes often. If posted time, proposal count, Connects or 
 
 ## Permissions
 
-`storage`, `alarms`, `notifications`, `idle`, `tabs`, `scripting`, `activeTab`, `contextMenus`, plus host access to `upwork.com` and the Discord/Slack webhook endpoints (used only if you set a webhook URL). AI provider access is an *optional* permission: Chrome asks for just your provider's address when you save an API key.
+`storage`, `alarms`, `notifications`, `idle`, `tabs`, `scripting`, `activeTab`, `contextMenus`, `offscreen` (plays alert sounds), plus host access to `upwork.com` and the Discord/Slack webhook endpoints (used only if you set a webhook URL). AI provider access is an *optional* permission: Chrome asks for just your provider's address when you save an API key.
 
 ## Privacy and safety
 

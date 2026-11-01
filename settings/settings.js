@@ -428,6 +428,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   desktopNotificationsCheckbox.checked = settings.desktopNotifications !== false;
   soundEnabledCheckbox.checked = settings.soundEnabled !== false;
 
+  const soundChoiceSelect = document.getElementById('soundChoice');
+  const soundVolumeInput = document.getElementById('soundVolume');
+  soundChoiceSelect.innerHTML = Object.entries(ALERT_SOUNDS)
+    .map(([key, s]) => `<option value="${key}">${s.label}</option>`).join('') +
+    '<option value="system">System default (OS notification sound)</option>';
+  soundChoiceSelect.value = settings.soundChoice || 'chime';
+  soundVolumeInput.value = settings.soundVolume ?? 70;
+  document.getElementById('soundVolumeLabel').textContent = soundVolumeInput.value;
+  soundVolumeInput.addEventListener('input', () => {
+    document.getElementById('soundVolumeLabel').textContent = soundVolumeInput.value;
+  });
+  document.getElementById('previewSoundBtn').addEventListener('click', playAudioChime);
+
   pauseOnIdleCheckbox.checked = settings.pauseOnIdle !== false;
   jitterEnabledCheckbox.checked = settings.jitterEnabled !== false;
 
@@ -652,6 +665,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       monthlyConnectsBudget: parseInt($('monthlyConnectsBudget').value, 10) || 0,
       desktopNotifications: desktopNotificationsCheckbox.checked,
       soundEnabled: soundEnabledCheckbox.checked,
+      soundChoice: soundChoiceSelect.value,
+      soundVolume: parseInt(soundVolumeInput.value, 10),
       telegramEnabled: false,
       pauseOnIdle: pauseOnIdleCheckbox.checked,
       jitterEnabled: jitterEnabledCheckbox.checked,
@@ -702,27 +717,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   function playAudioChime() {
-    try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
-      const now = ctx.currentTime;
-      [
-        { freq: 587.33, start: 0, dur: 0.15 },
-        { freq: 880.00, start: 0.12, dur: 0.35 }
-      ].forEach(({ freq, start, dur }) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, now + start);
-        gain.gain.setValueAtTime(0.2, now + start);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + start + dur);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(now + start);
-        osc.stop(now + start + dur);
-      });
-    } catch (e) {}
+    if (soundChoiceSelect.value !== 'system') playAlertSound(soundChoiceSelect.value, soundVolumeInput.value);
   }
 
   function escapeHtml(str) {

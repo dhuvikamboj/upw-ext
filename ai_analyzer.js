@@ -13,7 +13,7 @@ function analyzeClientTrust(jobData) {
   // 1. Suspension Check (Critical Red Flag - as seen in user screenshot)
   if (text.includes('suspended') || text.includes('client is suspended')) {
     score -= 75;
-    redFlags.push('🚨 CRITICAL: Client account is suspended! Do not waste connects.');
+    redFlags.push('CRITICAL: Client account is suspended! Do not waste connects.');
   }
 
   // 2. Rating Check
@@ -22,33 +22,33 @@ function analyzeClientTrust(jobData) {
     const rating = parseFloat(ratingMatch[1]);
     if (rating < 3.0) {
       score -= 35;
-      redFlags.push(`⚠️ Very Low Rating (${rating}★): High risk of disputes or difficult client.`);
+      redFlags.push(`Very Low Rating (${rating}★): High risk of disputes or difficult client.`);
     } else if (rating < 4.2) {
       score -= 15;
-      redFlags.push(`⚠️ Mediocre Rating (${rating}★): Check past freelancer feedback.`);
+      redFlags.push(`Mediocre Rating (${rating}★): Check past freelancer feedback.`);
     } else if (rating >= 4.8) {
       score += 15;
-      greenFlags.push(`⭐ Excellent Feedback (${rating}★): Reliable and professional employer.`);
+      greenFlags.push(`Excellent Feedback (${rating}★): Reliable and professional employer.`);
     }
   }
 
   // 3. Payment Verification
   if (/payment verified/i.test(jobData.client || '')) {
     score += 15;
-    greenFlags.push('💳 Payment Method Verified.');
+    greenFlags.push('Payment Method Verified.');
   } else if (/unverified/i.test(jobData.client || '')) {
     score -= 20;
-    redFlags.push('⚠️ Payment Unverified: Client has not added a verified credit card yet.');
+    redFlags.push('Payment Unverified: Client has not added a verified credit card yet.');
   }
 
   // 4. Spend Level
   const spentMatch = (jobData.client || '').match(/\$([\d,]+)[kKmM]?\s*spent/i);
   if (spentMatch) {
-    greenFlags.push(`💰 Client has spent ${spentMatch[0]} on Upwork.`);
+    greenFlags.push(`Client history: ${spentMatch[0]} on Upwork.`);
     score += 10;
   } else if (/0 spent|\$0/i.test(jobData.client || '')) {
     score -= 10;
-    redFlags.push('🆕 Brand New Client ($0 spent): May take longer to make their first hire.');
+    redFlags.push('Brand New Client ($0 spent): May take longer to make their first hire.');
   }
 
   // Normalize score between 5 and 100

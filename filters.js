@@ -100,6 +100,42 @@ function connectsSpentThisMonth(history = [], now = new Date()) {
     .reduce((sum, h) => sum + (h.connects || 0), 0);
 }
 
+// Client stats from a job page's "About the client" text (e.g. "85% hire rate", "6 jobs posted", "$50K total spent").
+function parseClientStats(text) {
+  const t = (text || '').replace(/\s+/g, ' ');
+  const stats = {};
+  const hr = t.match(/(\d+)%\s*hire rate/i);
+  if (hr) stats.hireRate = Number(hr[1]);
+  const jp = t.match(/(\d[\d,]*)\s*jobs?\s*posted/i);
+  if (jp) stats.jobsPosted = Number(jp[1].replace(/,/g, ''));
+  const hi = t.match(/(\d+)\s*hires?\b/i);
+  if (hi) stats.hires = Number(hi[1]);
+  const sp = t.match(/\$([\d.,]+)\s*([kKmM])?\+?\s*(?:total\s*)?spent/i);
+  if (sp) stats.spent = parseFloat(sp[1].replace(/,/g, '')) * ({ k: 1e3, m: 1e6 }[(sp[2] || '').toLowerCase()] || 1);
+  return stats;
+}
+
+const fmtMoney = (n) => (n >= 1e6 ? `$${+(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `$${+(n / 1e3).toFixed(1)}K` : `$${n}`);
+
+// Green / yellow / red read on how likely this client is to actually hire. null = not enough data.
+function classifyBuyer({ hireRate, jobsPosted, hires, spent } = {}) {
+  if (hireRate == null && jobsPosted == null && spent == null) return null;
+  const detail = [
+    hireRate != null && `${hireRate}% hire rate`,
+    hires != null && jobsPosted ? `${hires} hire${hires === 1 ? '' : 's'} out of ${jobsPosted} jobs` : jobsPosted != null && `${jobsPosted} jobs posted`,
+    spent != null && `${fmtMoney(spent)} spent`
+  ].filter(Boolean).join(', ');
+
+  const posted = jobsPosted ?? 0;
+  if (posted >= 3 && (hireRate === 0 || hires === 0 || (spent === 0 && (hireRate == null || hireRate <= 10)))) {
+    return { level: 'ghost', label: 'Ghost Job', detail };
+  }
+  if (hireRate != null && hireRate >= 60) return { level: 'active', label: 'Active Buyer', detail };
+  if (hireRate == null && spent >= 10000) return { level: 'active', label: 'Active Buyer', detail };
+  if (hireRate != null && posted >= 2) return { level: 'window', label: 'Window Shopper', detail };
+  return null;
+}
+
 if (typeof module !== 'undefined') {
-  module.exports = { clientFingerprint, webhookBody, parseBudget, passesBudget, isExcluded, inQuietHours, parseJobMeta, scoreJob, connectsSpentThisMonth };
+  module.exports = { parseClientStats, classifyBuyer, clientFingerprint, webhookBody, parseBudget, passesBudget, isExcluded, inQuietHours, parseJobMeta, scoreJob, connectsSpentThisMonth };
 }
