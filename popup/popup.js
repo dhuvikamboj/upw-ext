@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const emptyState = document.getElementById('emptyState');
   const jobCountBadge = document.getElementById('jobCountBadge');
   const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+  const connectsTracker = document.getElementById('connectsTracker');
 
   // AI Modal elements
   const aiModal = document.getElementById('aiModal');
@@ -125,7 +126,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           currentSearchLabel.title = `Active filters: ${extractedData.activeSkills.join(', ')}`;
         }
 
-        renderJobs(updatedList);
+        renderJobs(updatedList, (await chrome.storage.local.get('settings')).settings);
 
         // 3. Notify background service worker
         await chrome.runtime.sendMessage({
@@ -219,8 +220,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function reloadState() {
-    const { settings = {}, jobsToday = [], lastCheckInfo = {} } =
-      await chrome.storage.local.get(['settings', 'jobsToday', 'lastCheckInfo']);
+    const { settings = {}, jobsToday = [], lastCheckInfo = {}, applicationHistory = [] } =
+      await chrome.storage.local.get(['settings', 'jobsToday', 'lastCheckInfo', 'applicationHistory']);
+
+    const spent = connectsSpentThisMonth(applicationHistory);
+    const budget = settings.monthlyConnectsBudget || 0;
+    connectsTracker.textContent = budget
+      ? `🔗 Connects this month: ${spent} / ${budget}${spent > budget ? ' (over budget!)' : ''}`
+      : `🔗 Connects this month: ${spent}`;
+    connectsTracker.style.color = budget && spent > budget ? '#ef4444' : '';
 
     // Set toggle state
     const isActive = settings.monitoringActive !== false;
@@ -235,7 +243,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       lastScanText.textContent = 'Ready to scan';
     }
 
-    renderJobs(jobsToday);
+    renderJobs(jobsToday, settings);
   }
 
   function updateMonitoringUI(isActive) {
@@ -250,7 +258,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  function renderJobs(jobs) {
+  function renderJobs(jobs, settings = {}) {
     jobList.innerHTML = '';
     jobCountBadge.textContent = String(jobs.length);
 
@@ -269,6 +277,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       card.dataset.id = job.id;
 
       const timeAgo = formatTimeAgo(job.detectedAt);
+      const fit = scoreJob(job, settings);
+      const cost = fit.connects ?? (settings.connectsPerProposal || 16);
+      const prop = fit.proposals != null ? ` • ≤${fit.proposals} proposals` : '';
 
       card.innerHTML = `
         <a href="${escapeHtml(job.url)}" target="_blank" class="job-title-link" title="${escapeHtml(job.title)}">
@@ -278,6 +289,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           <span class="badge badge-budget">${escapeHtml(job.budget || 'Competitive')}</span>
           <span class="badge badge-client">${escapeHtml(job.client || 'Client')}</span>
           <span class="badge-time">${timeAgo}</span>
+        </div>
+        <div class="job-meta-row" title="Fit = skills 40, budget 20, competition 20, recency 20">
+          <span class="badge">${fit.score >= 70 ? '🔥' : fit.score >= 45 ? '👍' : '👎'} ${fit.score}% ${fit.label}${prop}</span>
+          <span class="badge">🔗 ${fit.connects == null ? '~' : ''}${cost} Connects</span>
         </div>
         <div class="job-action-row">
           <button class="applied-toggle-btn">
@@ -321,7 +336,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function toggleJobApplied(targetJob) {
-    const { jobsToday = [], applicationHistory = [] } = await chrome.storage.local.get(['jobsToday', 'applicationHistory']);
+    const { jobsToday = [], applicationHistory = [], settings = {} } = await chrome.storage.local.get(['jobsToday', 'applicationHistory', 'settings']);
+    const connects = targetJob.connects ?? scoreJob(targetJob, settings).connects ?? (settings.connectsPerProposal || 16);
 
     let isNowApplied = false;
     const updatedJobs = jobsToday.map((j) => {
@@ -337,6 +353,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (existingIndex >= 0) {
       updatedHistory[existingIndex].action = isNowApplied ? 'Applied' : 'Saved';
+      updatedHistory[existingIndex].connects = connects;
       updatedHistory[existingIndex].actionTimestamp = Date.now();
     } else {
       updatedHistory.unshift({
@@ -346,6 +363,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         budget: targetJob.budget,
         client: targetJob.client,
         action: isNowApplied ? 'Applied' : 'Saved',
+        connects,
         actionTimestamp: Date.now()
       });
     }
@@ -537,6 +555,7 @@ function extractJobsAndFiltersFromDOM() {
         client: clientParts.join(' • ') || 'Upwork Client',
         description: description || `Scope: ${title}`,
         skillsRequired: reqSkills,
+        cardText: text.replace(/\s+/g, ' ').trim().slice(0, 800),
         detectedAt: Date.now(),
         applied: false
       });

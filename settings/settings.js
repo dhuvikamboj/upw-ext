@@ -215,7 +215,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const searchUrlInput = document.getElementById('searchUrl');
   const intervalMinutesSelect = document.getElementById('intervalMinutes');
-  const minBudgetInput = document.getElementById('minBudget');
+  const $ = (id) => document.getElementById(id);
+  const extraSearchesEl = $('extraSearches');
 
   const freelancerHeadlineInput = document.getElementById('freelancerHeadline');
   const freelancerYearsExpInput = document.getElementById('freelancerYearsExp');
@@ -248,7 +249,48 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   searchUrlInput.value = settings.searchUrl || generateSearchUrlFromSkills(selectedSkills);
   intervalMinutesSelect.value = String(settings.intervalMinutes ?? 3);
-  minBudgetInput.value = settings.minBudget || '';
+  $('minHourly').value = settings.minHourly ?? settings.minBudget ?? '';
+  $('minFixed').value = settings.minFixed || '';
+  $('excludeKeywords').value = settings.excludeKeywords || '';
+  $('excludeCountries').value = settings.excludeCountries || '';
+  $('quietHoursEnabled').checked = !!settings.quietHoursEnabled;
+  $('quietStart').value = settings.quietStart || '22:00';
+  $('quietEnd').value = settings.quietEnd || '07:00';
+  $('dailyAlertCap').value = settings.dailyAlertCap || '';
+  $('minFitScore').value = settings.minFitScore || '';
+  $('connectsPerProposal').value = settings.connectsPerProposal ?? 16;
+  $('monthlyConnectsBudget').value = settings.monthlyConnectsBudget || '';
+
+  // --- Extra saved searches ---
+  (settings.searches || []).forEach(addSearchRow);
+  $('addSearchBtn').addEventListener('click', () => addSearchRow({}));
+
+  function addSearchRow(s) {
+    const row = document.createElement('div');
+    row.className = 'form-row search-row';
+    row.innerHTML = `
+      <input class="input-control s-name" placeholder="Name" value="${escapeHtml(s.name || '')}" style="flex:1">
+      <input class="input-control s-url" placeholder="Upwork search URL" value="${escapeHtml(s.url || '')}" style="flex:3">
+      <input class="input-control s-hr" type="number" min="0" placeholder="$/hr min" value="${s.minHourly || ''}" style="flex:1">
+      <input class="input-control s-fx" type="number" min="0" placeholder="Fixed min" value="${s.minFixed || ''}" style="flex:1">
+      <label><input type="checkbox" class="s-notify" ${s.notify === false ? '' : 'checked'}> Alert</label>
+      <button type="button" class="btn btn-secondary s-del">&times;</button>`;
+    row.querySelector('.s-del').addEventListener('click', () => row.remove());
+    extraSearchesEl.appendChild(row);
+  }
+
+  function collectSearches() {
+    return [...extraSearchesEl.querySelectorAll('.search-row')]
+      .map((r, i) => ({
+        name: r.querySelector('.s-name').value.trim() || `Search ${i + 2}`,
+        url: r.querySelector('.s-url').value.trim(),
+        minHourly: parseFloat(r.querySelector('.s-hr').value) || 0,
+        minFixed: parseFloat(r.querySelector('.s-fx').value) || 0,
+        notify: r.querySelector('.s-notify').checked,
+        enabled: true
+      }))
+      .filter((s) => s.url);
+  }
 
   if (freelancerHeadlineInput) freelancerHeadlineInput.value = settings.freelancerHeadline || '';
   if (freelancerYearsExpInput) freelancerYearsExpInput.value = settings.freelancerYearsExp || '';
@@ -452,7 +494,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       searchQuery: selectedSkills.join(' '),
       searchUrl: searchUrlInput.value.trim() || generateSearchUrlFromSkills(selectedSkills),
       intervalMinutes: newInterval,
-      minBudget: parseFloat(minBudgetInput.value) || 0,
+      minBudget: 0,
+      minHourly: parseFloat($('minHourly').value) || 0,
+      minFixed: parseFloat($('minFixed').value) || 0,
+      searches: collectSearches(),
+      excludeKeywords: $('excludeKeywords').value.trim(),
+      excludeCountries: $('excludeCountries').value.trim(),
+      quietHoursEnabled: $('quietHoursEnabled').checked,
+      quietStart: $('quietStart').value || '22:00',
+      quietEnd: $('quietEnd').value || '07:00',
+      dailyAlertCap: parseInt($('dailyAlertCap').value, 10) || 0,
+      minFitScore: parseInt($('minFitScore').value, 10) || 0,
+      connectsPerProposal: parseInt($('connectsPerProposal').value, 10) || 16,
+      monthlyConnectsBudget: parseInt($('monthlyConnectsBudget').value, 10) || 0,
       desktopNotifications: desktopNotificationsCheckbox.checked,
       soundEnabled: soundEnabledCheckbox.checked,
       telegramEnabled: false,
