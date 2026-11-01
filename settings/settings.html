@@ -4,18 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Upwork Job Radar - Settings</title>
+  <link rel="stylesheet" href="../theme.css">
   <link rel="stylesheet" href="settings.css">
 </head>
 <body>
   <div class="settings-container">
     <header class="settings-header">
       <div class="header-brand">
-        <div class="logo-box">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-          </svg>
-        </div>
+        <div class="logo-box" aria-hidden="true"><svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="16" cy="16" r="14"/><circle cx="16" cy="16" r="9"/><circle cx="16" cy="16" r="4"/><circle cx="22" cy="10" r="1.6" fill="currentColor" stroke="none"/></svg></div>
         <div>
           <h1>Upwork Job Radar Settings</h1>
           <p class="subtitle">Customize your job profile, scan frequency, and real-time alert preferences.</p>
@@ -26,8 +22,8 @@
 
     <!-- Navigation Tabs -->
     <nav class="settings-nav-tabs">
-      <a href="settings.html" class="tab-item active">⚙️ Settings</a>
-      <a href="../dashboard/dashboard.html" class="tab-item">📊 Proposal Analytics & History (PDF)</a>
+      <a href="settings.html" class="tab-item active">Settings</a>
+      <a href="../dashboard/dashboard.html" class="tab-item">Proposal Analytics & History (PDF)</a>
     </nav>
 
     <div id="saveBanner" class="alert-banner success" style="display: none;">
@@ -38,7 +34,7 @@
       <!-- Section 1: Job Profile & Search Criteria -->
       <section class="card">
         <div class="card-header">
-          <span class="card-icon">🎯</span>
+          <span class="card-icon"></span>
           <h2>Job Profile & Target Keywords</h2>
         </div>
 
@@ -58,7 +54,7 @@
 
           <!-- Quick Preset Chips -->
           <div class="quick-presets-wrap">
-            <span class="preset-label">🔥 Quick Add In-Demand Skills (IT & Non-IT):</span>
+            <span class="preset-label">Quick Add In-Demand Skills (IT & Non-IT):</span>
             <div class="preset-chips" id="presetChipsContainer">
               <button type="button" class="preset-chip" data-skill="Web Development">+ Web Development</button>
               <button type="button" class="preset-chip" data-skill="Python">+ Python</button>
@@ -116,7 +112,7 @@
       <!-- Section 1.2: Extra searches, filters, quiet hours -->
       <section class="card">
         <div class="card-header">
-          <span class="card-icon">🔎</span>
+          <span class="card-icon"></span>
           <h2>Extra Saved Searches</h2>
         </div>
         <div id="extraSearches"></div>
@@ -126,7 +122,7 @@
 
       <section class="card">
         <div class="card-header">
-          <span class="card-icon">🚫</span>
+          <span class="card-icon"></span>
           <h2>Filters & Alert Limits</h2>
         </div>
         <div class="form-group">
@@ -169,7 +165,7 @@
 
       <section class="card">
         <div class="card-header">
-          <span class="card-icon">🔔</span>
+          <span class="card-icon"></span>
           <h2>Webhook Alerts (Discord / Slack)</h2>
         </div>
         <div class="form-group">
@@ -188,7 +184,43 @@
 
       <section class="card">
         <div class="card-header">
-          <span class="card-icon">📝</span>
+          <span class="card-icon"></span>
+          <h2>AI Assistant (bring your own API key)</h2>
+        </div>
+        <p class="hint" style="margin-top: -10px; margin-bottom: 20px;">
+          Optional. Adds "Generate proposal" and "Quick analysis" to the AI Bid Prompt window. Runs only when you click, and sends that one job plus your profile to the provider you choose.
+        </p>
+        <div class="form-group">
+          <label for="aiProvider">Provider</label>
+          <select id="aiProvider" class="input-control">
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic (Claude)</option>
+            <option value="compatible">OpenAI-compatible (OpenRouter, Groq, Gemini, Ollama...)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="aiApiKey">API key</label>
+          <input type="password" id="aiApiKey" class="input-control" placeholder="Leave empty to disable AI features" autocomplete="off">
+          <small class="hint">Stored only in this browser's local extension storage, sent only to the provider's API, never exported. Use a key with a spending limit.</small>
+        </div>
+        <div class="form-row">
+          <div class="form-group half">
+            <label for="aiModel">Model</label>
+            <input type="text" id="aiModel" class="input-control">
+          </div>
+          <div class="form-group half">
+            <label for="aiBaseUrl">Base URL</label>
+            <input type="text" id="aiBaseUrl" class="input-control">
+          </div>
+        </div>
+        <button type="button" id="testAiBtn" class="btn btn-secondary">Test connection</button>
+        <span id="testAiFeedback" class="status-msg"></span>
+        <small class="hint" style="display:block;margin-top:8px">Saving asks Chrome for permission to reach only that provider's address.</small>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <span class="card-icon"></span>
           <h2>Proposal Snippets</h2>
         </div>
         <div id="snippetRows"></div>
@@ -198,7 +230,7 @@
 
       <section class="card">
         <div class="card-header">
-          <span class="card-icon">🚫</span>
+          <span class="card-icon"></span>
           <h2>Blocked Clients</h2>
         </div>
         <div id="blockedList"></div>
@@ -207,7 +239,7 @@
 
       <section class="card">
         <div class="card-header">
-          <span class="card-icon">💾</span>
+          <span class="card-icon"></span>
           <h2>Backup</h2>
         </div>
         <button type="button" id="exportBtn" class="btn btn-secondary">Export settings</button>
@@ -219,10 +251,10 @@
       <!-- Section 1.5: Freelancer Proposal Identity & Profile -->
       <section class="card">
         <div class="card-header">
-          <span class="card-icon">💼</span>
+          <span class="card-icon"></span>
           <h2>Your Freelancer Profile (For AI Winning Proposals)</h2>
         </div>
-        <p style="font-size: 13px; color: #64748b; margin-top: -6px; margin-bottom: 14px;">
+        <p class="hint" style="margin-top: -10px; margin-bottom: 20px;">
           The AI Proposal Generator uses your profile to write customized, authentic bids tailored specifically to each job without listing irrelevant skills.
         </p>
 
@@ -249,15 +281,15 @@
       <!-- Section 2: Desktop Notifications & Sound Alerts -->
       <section class="card">
         <div class="card-header">
-          <span class="card-icon">🔔</span>
+          <span class="card-icon"></span>
           <h2>Desktop Notifications & Audio Alerts</h2>
         </div>
 
         <div class="mac-tip-box">
-          <div class="tip-icon">ℹ️</div>
+          <div class="tip-icon">Note</div>
           <div>
             <strong>Mac Users Notice:</strong> If desktop notifications do not appear on your screen:
-            <br>Open <strong>Apple Menu ➔ System Settings ➔ Notifications ➔ Google Chrome</strong> and verify that <strong>"Allow Notifications"</strong> and <strong>"Banners"</strong> are turned ON.
+            <br>Open <strong>Apple Menu &rsaquo; System Settings &rsaquo; Notifications &rsaquo; Google Chrome</strong> and verify that <strong>"Allow Notifications"</strong> and <strong>"Banners"</strong> are turned ON.
           </div>
         </div>
 
@@ -283,6 +315,20 @@
           </label>
         </div>
 
+        <div class="form-row">
+          <div class="form-group half">
+            <label for="soundChoice">Alert sound</label>
+            <select id="soundChoice" class="input-control"></select>
+          </div>
+          <div class="form-group half">
+            <label for="soundVolume">Volume: <span id="soundVolumeLabel">70</span>%</label>
+            <input type="range" id="soundVolume" min="0" max="100" value="70" style="width:100%">
+          </div>
+        </div>
+        <div class="action-btn-row">
+          <button type="button" id="previewSoundBtn" class="btn btn-secondary">Preview sound</button>
+        </div>
+
         <div class="action-btn-row">
           <button type="button" id="testDesktopNotifBtn" class="btn btn-secondary">
             Verify Notification Banner & Sound
@@ -294,7 +340,7 @@
       <!-- Section 3: Telegram Mobile Alerts (Phase 2 Coming Soon) -->
       <section class="card coming-soon-card">
         <div class="card-header">
-          <span class="card-icon">📱</span>
+          <span class="card-icon"></span>
           <h2>Telegram Mobile Alerts</h2>
           <span class="badge-coming-soon">COMING SOON IN PHASE 2</span>
         </div>
@@ -319,7 +365,7 @@
       <!-- Section 4: Safety & Anti-Detection -->
       <section class="card">
         <div class="card-header">
-          <span class="card-icon">🛡️</span>
+          <span class="card-icon"></span>
           <h2>Safety & Protection</h2>
         </div>
 
@@ -352,6 +398,8 @@
     </form>
   </div>
 
+  <script src="../ai_client.js"></script>
+  <script src="../sounds.js"></script>
   <script src="settings.js"></script>
 </body>
 </html>

@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Upwork Job Radar - Analytics & Activity History</title>
+  <link rel="stylesheet" href="../theme.css">
   <link rel="stylesheet" href="dashboard.css">
 </head>
 <body>
@@ -11,12 +12,7 @@
     <!-- Top Navigation Header -->
     <header class="dashboard-header no-print">
       <div class="header-left">
-        <div class="logo-box">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-          </svg>
-        </div>
+        <div class="logo-box" aria-hidden="true"><svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="16" cy="16" r="14"/><circle cx="16" cy="16" r="9"/><circle cx="16" cy="16" r="4"/><circle cx="22" cy="10" r="1.6" fill="currentColor" stroke="none"/></svg></div>
         <div>
           <h1>Freelancer Activity & Proposal Analytics</h1>
           <p class="subtitle">Track monitored jobs, proposal actions, budget trends, and export PDF reports.</p>
@@ -37,15 +33,15 @@
 
     <!-- Navigation Tabs -->
     <nav class="settings-nav-tabs no-print">
-      <a href="../settings/settings.html" class="tab-item">⚙️ Settings</a>
-      <a href="dashboard.html" class="tab-item active">📊 Proposal Analytics & History (PDF)</a>
+      <a href="../settings/settings.html" class="tab-item">Settings</a>
+      <a href="dashboard.html" class="tab-item active">Proposal Analytics & History (PDF)</a>
     </nav>
 
     <!-- No Data Warning Alert -->
     <div id="noDataBanner" class="alert-banner warning no-print" style="display: none;">
       <div class="banner-inner">
         <div>
-          <strong>⚠️ Hi there! There is no data for now to export.</strong>
+          <strong>Hi there! There is no data for now to export.</strong>
           <p>You haven't scanned or tracked any Upwork proposals yet. Open an Upwork search page or click "Scan Now" in the extension popup to start tracking jobs.</p>
         </div>
       </div>
@@ -172,7 +168,7 @@
         </table>
 
         <div id="tableEmptyState" class="table-empty">
-          <div class="empty-icon">📋</div>
+          <div class="empty-icon"></div>
           <p class="empty-title">No proposal actions recorded yet</p>
           <p class="empty-desc">When you click <strong>Apply ↗</strong> or <strong>Mark Applied</strong> in the extension, the jobs will automatically be saved and tracked here.</p>
         </div>
