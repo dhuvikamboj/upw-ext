@@ -261,6 +261,57 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('connectsPerProposal').value = settings.connectsPerProposal ?? 16;
   $('monthlyConnectsBudget').value = settings.monthlyConnectsBudget || '';
 
+  // --- AI (bring your own key) ---
+  const { aiConfig = {} } = await chrome.storage.local.get('aiConfig');
+  $('aiProvider').value = aiConfig.provider || 'openai';
+  $('aiApiKey').value = aiConfig.apiKey || '';
+  $('aiModel').value = aiConfig.model || '';
+  $('aiBaseUrl').value = aiConfig.baseUrl || '';
+  syncAiPlaceholders();
+  $('aiProvider').addEventListener('change', syncAiPlaceholders);
+
+  function syncAiPlaceholders() {
+    const d = AI_DEFAULTS[$('aiProvider').value];
+    $('aiModel').placeholder = d.model || 'e.g. llama3';
+    $('aiBaseUrl').placeholder = d.baseUrl || 'e.g. https://openrouter.ai/api/v1';
+  }
+
+  function readAiForm() {
+    return {
+      provider: $('aiProvider').value,
+      apiKey: $('aiApiKey').value.trim(),
+      model: $('aiModel').value.trim(),
+      baseUrl: $('aiBaseUrl').value.trim()
+    };
+  }
+
+  // Ask Chrome for access to just the provider's origin (must run from a click)
+  async function ensureAiPermission(cfg) {
+    try {
+      const origin = new URL(cfg.baseUrl || AI_DEFAULTS[cfg.provider].baseUrl).origin + '/*';
+      return (await chrome.permissions.contains({ origins: [origin] })) ||
+        (await chrome.permissions.request({ origins: [origin] }));
+    } catch (e) {
+      return false;
+    }
+  }
+
+  $('testAiBtn').addEventListener('click', async () => {
+    const fb = $('testAiFeedback');
+    const cfg = readAiForm();
+    fb.className = 'status-msg';
+    if (!cfg.apiKey) { fb.textContent = 'Enter an API key first.'; return; }
+    fb.textContent = 'Testing...';
+    if (!(await ensureAiPermission(cfg))) {
+      fb.className = 'status-msg error';
+      fb.textContent = 'Permission to reach the provider was not granted (check the base URL).';
+      return;
+    }
+    const res = await chrome.runtime.sendMessage({ type: 'AI_RUN', mode: 'ping', config: cfg }).catch((e) => ({ ok: false, error: e.message }));
+    fb.className = `status-msg ${res && res.ok ? 'success' : 'error'}`;
+    fb.textContent = res && res.ok ? '✓ Connected' : `Failed: ${res && res.error}`;
+  });
+
   // --- Webhook, colour, snippets, blocked clients, backup ---
   $('webhookUrl').value = settings.webhookUrl || '';
   $('primaryColor').value = settings.primaryColor || '#14a800';
@@ -558,6 +609,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Handle Form Submission
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+
+    // Permission prompt must happen right after the click, before other awaits
+    const aiCfg = readAiForm();
+    if (aiCfg.apiKey) {
+      await ensureAiPermission(aiCfg);
+      await chrome.storage.local.set({ aiConfig: aiCfg });
+    } else {
+      await chrome.storage.local.remove('aiConfig');
+    }
 
     const newInterval = parseFloat(intervalMinutesSelect.value) || 3;
     const combinedProfile = selectedSkills.join(', ') || 'Web Development';

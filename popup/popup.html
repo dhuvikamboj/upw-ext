@@ -141,6 +141,19 @@
           <select id="snippetSelect" class="snooze-select"></select>
         </div>
 
+        <div class="ai-prompt-box" id="aiRunBox">
+          <div class="prompt-box-header">
+            <span class="prompt-title">✨ AI (your API key):</span>
+            <span>
+              <button type="button" id="aiGenBtn" class="copy-btn-action">Generate proposal</button>
+              <button type="button" id="aiAnalyzeBtn" class="copy-btn-action">Quick analysis</button>
+            </span>
+          </div>
+          <p class="prompt-hint" id="aiRunHint"></p>
+          <textarea id="aiOutput" class="prompt-textarea" style="display:none"></textarea>
+          <button type="button" id="aiCopyBtn" class="copy-btn-action" style="display:none">📋 Copy result</button>
+        </div>
+
         <!-- Copy AI Prompt Action Box -->
         <div class="ai-prompt-box">
           <div class="prompt-box-header">

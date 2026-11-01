@@ -1,7 +1,7 @@
 // background.js - Upwork Job Radar Service Worker
 // Manifest V3 Compliant (Pure async/await, ephemeral state stored in chrome.storage)
 
-importScripts('filters.js');
+importScripts('filters.js', 'ai_client.js', 'ai_analyzer.js');
 
 const ALARM_NAME = 'UPWORK_MONITOR_ALARM';
 
@@ -448,6 +448,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           await processNewJobs(message.jobs, settings);
         }
         sendResponse({ success: true });
+        break;
+      }
+
+      case 'AI_RUN': {
+        try {
+          const { aiConfig, settings = {} } = await chrome.storage.local.get(['aiConfig', 'settings']);
+          let text;
+          if (message.mode === 'ping') {
+            text = await callAi(message.config || aiConfig, 'Reply with the single word OK.', 'ping');
+          } else if (message.mode === 'analysis') {
+            text = await callAi(aiConfig, 'You are a concise freelance career advisor.', buildJobAnalysisPrompt(message.job, settings));
+          } else {
+            text = await callAi(
+              aiConfig,
+              'You write winning Upwork proposals. Output only the proposal text, ready to paste, with no preamble or notes.',
+              generateWinningProposalPrompt(message.job, settings)
+            );
+          }
+          sendResponse({ ok: true, text });
+        } catch (err) {
+          sendResponse({ ok: false, error: err.message });
+        }
         break;
       }
 

@@ -49,6 +49,10 @@
     "activeTab",
     "contextMenus"
   ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://localhost/*"
+  ],
   "host_permissions": [
     "*://*.upwork.com/*",
     "https://discord.com/api/webhooks/*",

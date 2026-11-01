@@ -188,6 +188,42 @@
 
       <section class="card">
         <div class="card-header">
+          <span class="card-icon">✨</span>
+          <h2>AI Assistant (bring your own API key)</h2>
+        </div>
+        <p style="font-size: 13px; color: #64748b; margin-top: -6px; margin-bottom: 14px;">
+          Optional. Adds "Generate proposal" and "Quick analysis" to the AI Bid Prompt window. Runs only when you click, and sends that one job plus your profile to the provider you choose.
+        </p>
+        <div class="form-group">
+          <label for="aiProvider">Provider</label>
+          <select id="aiProvider" class="input-control">
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic (Claude)</option>
+            <option value="compatible">OpenAI-compatible (OpenRouter, Groq, Gemini, Ollama...)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="aiApiKey">API key</label>
+          <input type="password" id="aiApiKey" class="input-control" placeholder="Leave empty to disable AI features" autocomplete="off">
+          <small class="hint">Stored only in this browser's local extension storage, sent only to the provider's API, never exported. Use a key with a spending limit.</small>
+        </div>
+        <div class="form-row">
+          <div class="form-group half">
+            <label for="aiModel">Model</label>
+            <input type="text" id="aiModel" class="input-control">
+          </div>
+          <div class="form-group half">
+            <label for="aiBaseUrl">Base URL</label>
+            <input type="text" id="aiBaseUrl" class="input-control">
+          </div>
+        </div>
+        <button type="button" id="testAiBtn" class="btn btn-secondary">Test connection</button>
+        <span id="testAiFeedback" class="status-msg"></span>
+        <small class="hint" style="display:block;margin-top:8px">Saving asks Chrome for permission to reach only that provider's address.</small>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
           <span class="card-icon">📝</span>
           <h2>Proposal Snippets</h2>
         </div>
@@ -352,6 +388,7 @@
     </form>
   </div>
 
+  <script src="../ai_client.js"></script>
   <script src="settings.js"></script>
 </body>
 </html>

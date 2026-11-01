@@ -21,6 +21,34 @@ document.addEventListener('DOMContentLoaded', async () => {
   const snippetBox = document.getElementById('snippetBox');
   const snippetSelect = document.getElementById('snippetSelect');
   let snippets = [];
+  let currentModalJob = null;
+  const aiGenBtn = document.getElementById('aiGenBtn');
+  const aiAnalyzeBtn = document.getElementById('aiAnalyzeBtn');
+  const aiOutput = document.getElementById('aiOutput');
+  const aiCopyBtn = document.getElementById('aiCopyBtn');
+  const aiRunHint = document.getElementById('aiRunHint');
+
+  async function runAi(mode) {
+    aiGenBtn.disabled = aiAnalyzeBtn.disabled = true;
+    aiRunHint.textContent = 'Thinking...';
+    aiOutput.style.display = aiCopyBtn.style.display = 'none';
+    const res = await chrome.runtime.sendMessage({ type: 'AI_RUN', mode, job: currentModalJob }).catch((e) => ({ ok: false, error: e.message }));
+    aiGenBtn.disabled = aiAnalyzeBtn.disabled = false;
+    if (res && res.ok) {
+      aiRunHint.textContent = '';
+      aiOutput.value = res.text;
+      aiOutput.style.display = aiCopyBtn.style.display = '';
+    } else {
+      aiRunHint.textContent = `AI error: ${res && res.error}`;
+    }
+  }
+  aiGenBtn.addEventListener('click', () => runAi('proposal'));
+  aiAnalyzeBtn.addEventListener('click', () => runAi('analysis'));
+  aiCopyBtn.addEventListener('click', async () => {
+    await navigator.clipboard.writeText(aiOutput.value);
+    aiCopyBtn.textContent = '✓ Copied';
+    setTimeout(() => { aiCopyBtn.textContent = '📋 Copy result'; }, 2000);
+  });
 
   document.getElementById('snippetCopyBtn').addEventListener('click', async () => {
     const sn = snippets[snippetSelect.value];
@@ -468,6 +496,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       : `Write an elite proposal for: ${job.title}`;
 
     modalPromptText.value = prompt;
+    currentModalJob = job;
+    const { aiConfig } = await chrome.storage.local.get('aiConfig');
+    const hasKey = !!(aiConfig && aiConfig.apiKey);
+    aiGenBtn.disabled = aiAnalyzeBtn.disabled = !hasKey;
+    aiRunHint.textContent = hasKey ? 'Sends this job and your profile to your chosen provider when you click.' : 'Add an API key in Settings > AI Assistant to enable.';
+    aiOutput.style.display = aiCopyBtn.style.display = 'none';
     modalCopiedToast.style.display = 'none';
     modalCopiedToast.textContent = '✓ Copied to clipboard! Ready to paste into ChatGPT / Claude.';
     snippetBox.style.display = snippets.length ? '' : 'none';

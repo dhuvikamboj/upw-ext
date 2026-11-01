@@ -245,6 +245,31 @@ ${jobScope}
 Write the winning proposal now:`;
 }
 
+/**
+ * Prompt for a quick apply/skip verdict on a job (used with the user's own API key).
+ */
+function buildJobAnalysisPrompt(jobData, settings) {
+  const skills = (settings && settings.selectedSkills || []).join(', ') || 'not specified';
+  return `Give a quick apply-or-skip assessment of this Upwork job for a freelancer.
+
+[JOB]
+Title: ${jobData.title}
+Budget: ${jobData.budget || 'unknown'}
+Client: ${jobData.client || 'unknown'}
+Requested skills: ${(jobData.skillsRequired || []).join(', ') || 'unknown'}
+Description: ${jobData.description || 'n/a'}
+
+[FREELANCER]
+Skills: ${skills}
+Headline: ${(settings && settings.freelancerHeadline) || 'n/a'}
+
+Reply in under 120 words, exactly in this format:
+Verdict: APPLY / MAYBE / SKIP
+Why: 2-3 short bullets
+Red flags: bullets, or "none"
+Suggested bid: one line (rate or fixed price) with a one-line reason`;
+}
+
 if (typeof module !== 'undefined') {
-  module.exports = { analyzeClientTrust, getRelevantSkillsForJob, generateWinningProposalPrompt };
+  module.exports = { analyzeClientTrust, getRelevantSkillsForJob, generateWinningProposalPrompt, buildJobAnalysisPrompt };
 }
