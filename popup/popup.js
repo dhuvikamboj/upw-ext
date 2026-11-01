@@ -15,12 +15,41 @@ document.addEventListener('DOMContentLoaded', async () => {
   const jobCountBadge = document.getElementById('jobCountBadge');
   const clearHistoryBtn = document.getElementById('clearHistoryBtn');
   const connectsTracker = document.getElementById('connectsTracker');
+  const tabStatus = document.getElementById('tabStatus');
   const snoozeSelect = document.getElementById('snoozeSelect');
   const snoozeStatus = document.getElementById('snoozeStatus');
   const resumeBtn = document.getElementById('resumeBtn');
   const snippetBox = document.getElementById('snippetBox');
   const snippetSelect = document.getElementById('snippetSelect');
   let snippets = [];
+  let currentModalJob = null;
+  const aiGenBtn = document.getElementById('aiGenBtn');
+  const aiAnalyzeBtn = document.getElementById('aiAnalyzeBtn');
+  const aiOutput = document.getElementById('aiOutput');
+  const aiCopyBtn = document.getElementById('aiCopyBtn');
+  const aiRunHint = document.getElementById('aiRunHint');
+
+  async function runAi(mode) {
+    aiGenBtn.disabled = aiAnalyzeBtn.disabled = true;
+    aiRunHint.textContent = 'Thinking...';
+    aiOutput.style.display = aiCopyBtn.style.display = 'none';
+    const res = await chrome.runtime.sendMessage({ type: 'AI_RUN', mode, job: currentModalJob }).catch((e) => ({ ok: false, error: e.message }));
+    aiGenBtn.disabled = aiAnalyzeBtn.disabled = false;
+    if (res && res.ok) {
+      aiRunHint.textContent = '';
+      aiOutput.value = res.text;
+      aiOutput.style.display = aiCopyBtn.style.display = '';
+    } else {
+      aiRunHint.textContent = `AI error: ${res && res.error}`;
+    }
+  }
+  aiGenBtn.addEventListener('click', () => runAi('proposal'));
+  aiAnalyzeBtn.addEventListener('click', () => runAi('analysis'));
+  aiCopyBtn.addEventListener('click', async () => {
+    await navigator.clipboard.writeText(aiOutput.value);
+    aiCopyBtn.textContent = '✓ Copied';
+    setTimeout(() => { aiCopyBtn.textContent = 'Copy result'; }, 2000);
+  });
 
   document.getElementById('snippetCopyBtn').addEventListener('click', async () => {
     const sn = snippets[snippetSelect.value];
@@ -78,6 +107,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Clear unread badge counter on popup view
   chrome.runtime.sendMessage({ type: 'CLEAR_BADGE' }).catch(() => {});
+
+  // Is an Upwork tab open with the content script responding?
+  async function updateTabStatus() {
+    let live = false;
+    try {
+      const tabs = await chrome.tabs.query({ url: '*://*.upwork.com/*' });
+      for (const t of tabs) {
+        const r = await chrome.tabs.sendMessage(t.id, { type: 'PING' }).catch(() => null);
+        if (r && r.ok) { live = true; break; }
+      }
+    } catch (e) {}
+    tabStatus.innerHTML = `<i class="dot ${live ? 'live' : 'idle'}"></i>${live
+      ? 'Live monitor active. Upwork tab open and synced.'
+      : 'Background polling. Open an Upwork tab for live sync.'}`;
+  }
+  updateTabStatus();
+  setInterval(updateTabStatus, 5000);
 
   // Load and render initial state
   await reloadState();
@@ -144,7 +190,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           }
         });
 
-        const updatedList = jobsToday.slice(0, 100);
+        const updatedList = jobsToday.filter((j) => isJobUrl(j.url)).slice(0, 100); // also purges stray profile entries
         await chrome.storage.local.set({
           jobsToday: updatedList,
           lastCheckInfo: {
@@ -229,11 +275,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (results && results[0] && results[0].result) {
           const { skills, searchQ } = results[0].result;
           if (skills && skills.length > 0) {
-            currentSearchLabel.textContent = `🎯 ${skills.join(' • ')}`;
+            currentSearchLabel.textContent = skills.join(' / ');
             currentSearchLabel.title = `Skills detected from active Upwork tab: ${skills.join(', ')}`;
             return;
           } else if (searchQ) {
-            currentSearchLabel.textContent = `🎯 "${searchQ}"`;
+            currentSearchLabel.textContent = `"${searchQ}"`;
             currentSearchLabel.title = `Search query: ${searchQ}`;
             return;
           }
@@ -244,11 +290,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Fallback to saved settings
     const { settings = {} } = await chrome.storage.local.get('settings');
     if (settings.selectedSkills && settings.selectedSkills.length > 0) {
-      currentSearchLabel.textContent = `🎯 ${settings.selectedSkills.join(' • ')}`;
+      currentSearchLabel.textContent = `${settings.selectedSkills.join(' • ')}`;
     } else if (settings.jobProfile && !settings.jobProfile.includes('chrome://')) {
-      currentSearchLabel.textContent = `🎯 ${settings.jobProfile}`;
+      currentSearchLabel.textContent = `${settings.jobProfile}`;
     } else {
-      currentSearchLabel.textContent = '🎯 Web Development • Graphic Design';
+      currentSearchLabel.textContent = 'Web Development • Graphic Design';
     }
   }
 
@@ -267,9 +313,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const spent = connectsSpentThisMonth(applicationHistory);
     const budget = settings.monthlyConnectsBudget || 0;
     connectsTracker.textContent = budget
-      ? `🔗 Connects this month: ${spent} / ${budget}${spent > budget ? ' (over budget!)' : ''}`
-      : `🔗 Connects this month: ${spent}`;
-    connectsTracker.style.color = budget && spent > budget ? '#ef4444' : '';
+      ? `Connects ${spent}/${budget}${spent > budget ? ' over budget' : ''}`
+      : `Connects ${spent} this month`;
+    connectsTracker.style.color = budget && spent > budget ? 'var(--danger)' : '';
 
     // Set toggle state
     const isActive = settings.monitoringActive !== false;
@@ -284,7 +330,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       lastScanText.textContent = 'Ready to scan';
     }
 
-    renderJobs(jobsToday, settings);
+    renderJobs(jobsToday.filter((j) => isJobUrl(j.url)), settings);
   }
 
   function updateMonitoringUI(isActive) {
@@ -312,7 +358,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     emptyState.style.display = 'none';
     jobList.style.display = 'flex';
 
-    jobs.forEach((job) => {
+    jobs.forEach((job, idx) => {
       const card = document.createElement('div');
       card.className = `job-card ${job.applied ? 'applied' : ''}`;
       card.dataset.id = job.id;
@@ -321,33 +367,34 @@ document.addEventListener('DOMContentLoaded', async () => {
       const timeAgo = formatTimeAgo(job.detectedAt);
       const fit = scoreJob(job, settings);
       const cost = fit.connects ?? (settings.connectsPerProposal || 16);
-      const prop = fit.proposals != null ? ` • ≤${fit.proposals} proposals` : '';
+      const buyer = job.clientStats ? classifyBuyer(job.clientStats) : null;
 
+      const tier = fit.score >= 70 ? 'hi' : fit.score >= 45 ? 'mid' : 'lo';
+      card.style.setProperty('--i', Math.min(idx, 8));
       card.innerHTML = `
-        <a href="${escapeHtml(job.url)}" target="_blank" class="job-title-link" title="${escapeHtml(job.title)}">
-          ${escapeHtml(job.title)}
-        </a>
-        <div class="job-meta-row">
-          <span class="badge badge-budget">${escapeHtml(job.budget || 'Competitive')}</span>
-          <span class="badge badge-client">${escapeHtml(job.client || 'Client')}</span>
-          <span class="badge-time">${timeAgo}</span>
+        <div class="job-head">
+          <span class="fit fit-${tier}" style="--p:${fit.score}" title="Fit ${fit.score} of 100: ${fit.label}. Skills 40, budget 20, competition 20, recency 20."><b>${fit.score}</b></span>
+          <div class="job-head-main">
+            <a href="${escapeHtml(job.url)}" target="_blank" class="job-title-link" title="${escapeHtml(job.title)}">${escapeHtml(job.title)}</a>
+            <div class="job-sub">
+              <span class="job-budget">${escapeHtml(job.budget || 'Competitive')}</span>
+              <span class="job-client">${escapeHtml(job.client || 'Client')}</span>
+              <span class="job-when">${timeAgo}</span>
+            </div>
+          </div>
         </div>
-        <div class="job-meta-row" title="Fit = skills 40, budget 20, competition 20, recency 20">
-          <span class="badge">${fit.score >= 70 ? '🔥' : fit.score >= 45 ? '👍' : '👎'} ${fit.score}% ${fit.label}${prop}</span>
-          <span class="badge">🔗 ${fit.connects == null ? '~' : ''}${cost} Connects</span>
+        <div class="job-tags">
+          <span class="tag">${fit.label}</span>
+          ${fit.proposals != null ? `<span class="tag">Up to ${fit.proposals} proposals</span>` : ''}
+          ${buyer ? `<span class="tag tag-${buyer.level}" title="${escapeHtml(buyer.detail)}"><i class="dot"></i>${buyer.label}</span>` : ''}
+          <span class="tag">${fit.connects == null ? '~' : ''}${cost} Connects</span>
         </div>
         <div class="job-action-row">
-          <button class="applied-toggle-btn">
-            ${job.applied ? '✓ Applied' : '○ Mark Applied'}
-          </button>
-          <div style="display: flex; gap: 6px; align-items: center;">
-            <button class="block-btn" title="Block this client (matched by spend + rating + country)">🚫</button>
-            <button class="ai-bid-btn" title="Client Risk Score & AI Proposal Prompt">
-              🧠 AI Bid Prompt
-            </button>
-            <a href="${escapeHtml(job.url)}" target="_blank" class="apply-btn">
-              Apply <span>↗</span>
-            </a>
+          <button class="applied-toggle-btn">${job.applied ? 'Applied' : 'Mark applied'}</button>
+          <div class="job-actions-right">
+            <button class="block-btn" title="Block this client (matched by spend + rating + country)">Block</button>
+            <button class="ai-bid-btn" title="Client risk score and AI proposal prompt">AI bid</button>
+            <a href="${escapeHtml(job.url)}" target="_blank" class="apply-btn">Apply</a>
           </div>
         </div>
       `;
@@ -468,6 +515,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       : `Write an elite proposal for: ${job.title}`;
 
     modalPromptText.value = prompt;
+    currentModalJob = job;
+    const { aiConfig } = await chrome.storage.local.get('aiConfig');
+    const hasKey = !!(aiConfig && aiConfig.apiKey);
+    aiGenBtn.disabled = aiAnalyzeBtn.disabled = !hasKey;
+    aiRunHint.textContent = hasKey ? 'Sends this job and your profile to your chosen provider when you click.' : 'Add an API key in Settings > AI Assistant to enable.';
+    aiOutput.style.display = aiCopyBtn.style.display = 'none';
     modalCopiedToast.style.display = 'none';
     modalCopiedToast.textContent = '✓ Copied to clipboard! Ready to paste into ChatGPT / Claude.';
     snippetBox.style.display = snippets.length ? '' : 'none';
@@ -549,13 +602,16 @@ function extractJobsAndFiltersFromDOM() {
   const seenIds = new Set();
 
   // Find all links matching Upwork job postings
-  const anchors = Array.from(document.querySelectorAll('a[href*="/jobs/"], a[href*="/details/"], a[href*="~"]'));
+  const anchors = Array.from(document.querySelectorAll('a[href*="/jobs/"], a[href*="/details/"]'));
 
   anchors.forEach((a) => {
     try {
       const href = a.getAttribute('href') || '';
       const idMatch = href.match(/~[a-zA-Z0-9]+/);
       if (!idMatch) return;
+      // Only job postings: skip freelancer/agency profile links that also carry ~ids
+      if (!/\/(?:jobs\/|nx\/search\/jobs\/details\/|nx\/find-work\/[^?]*\/details\/)/.test(href) ||
+          /\/(?:freelancers|ab\/profiles|agencies|fl|o)\//.test(href)) return;
 
       const id = idMatch[0];
       if (seenIds.has(id)) return;

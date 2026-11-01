@@ -4,20 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Upwork Job Radar</title>
+  <link rel="stylesheet" href="../theme.css">
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <header class="app-header">
     <div class="brand">
-      <div class="brand-logo">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-        </svg>
-      </div>
+      <div class="brand-logo" aria-hidden="true"><span class="sweep"></span><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="16" cy="16" r="14"/><circle cx="16" cy="16" r="9"/><circle cx="16" cy="16" r="4"/><circle class="blip" cx="22" cy="10" r="1.6" fill="currentColor" stroke="none"/></svg></div>
       <div>
         <h1 class="brand-title">Job Radar</h1>
-        <span class="brand-subtitle">Upwork Proposal Alert</span>
+        <span class="brand-subtitle">Upwork signal monitor</span>
       </div>
     </div>
     <div class="header-actions">
@@ -62,17 +58,18 @@
     </div>
 
     <div class="live-status-row">
+      <span id="tabStatus" class="live-status-text" title="Whether an Upwork tab is open and responding"></span>
+    </div>
+
+    <div class="live-status-row">
       <select id="snoozeSelect" class="snooze-select" title="Pause alerts; jobs still appear below">
-        <option value="">😴 Snooze alerts…</option>
+        <option value="">Snooze alerts…</option>
         <option value="60">1 hour</option>
         <option value="240">4 hours</option>
         <option value="tomorrow">Until tomorrow 7am</option>
       </select>
       <span id="snoozeStatus" class="live-status-text"></span>
       <button id="resumeBtn" class="text-link" style="display:none">Resume</button>
-    </div>
-
-    <div class="live-status-row">
       <span id="connectsTracker" class="live-status-text" title="Connects spent on jobs marked Applied this month"></span>
     </div>
 
@@ -95,12 +92,7 @@
     </div>
 
     <div id="emptyState" class="empty-state">
-      <div class="empty-icon">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="8"></circle>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-        </svg>
-      </div>
+      <div class="empty-icon" aria-hidden="true"><svg viewBox="0 0 64 64" width="64" height="64" fill="none" stroke="currentColor" stroke-width="1"><circle cx="32" cy="32" r="30"/><circle cx="32" cy="32" r="20"/><circle cx="32" cy="32" r="10"/><path d="M32 32 L58 18" stroke-width="1.4"/></svg></div>
       <p class="empty-title">Scanning for golden matches...</p>
       <p class="empty-subtitle">Keep an Upwork tab open or click <strong>Scan Now</strong> to check immediately.</p>
     </div>
@@ -108,7 +100,7 @@
 
   <footer class="app-footer">
     <div class="tip-banner">
-      <span>💡 <strong>Tip:</strong> Apply within 15 min to get 3x more interview invites.</span>
+      <span><strong>Tip:</strong> Apply within 15 min to get 3x more interview invites.</span>
     </div>
   </footer>
 
@@ -117,7 +109,7 @@
     <div class="ai-modal-content">
       <div class="ai-modal-header">
         <div class="ai-modal-title-wrap">
-          <span class="ai-icon">🧠</span>
+          <span class="ai-icon"></span>
           <h3>Client Risk & AI Bid Prompt</h3>
         </div>
         <button type="button" id="closeAiModalBtn" class="ai-close-btn">&times;</button>
@@ -136,9 +128,22 @@
         <div class="ai-prompt-box" id="snippetBox" style="display:none">
           <div class="prompt-box-header">
             <span class="prompt-title">Saved snippet:</span>
-            <button type="button" id="snippetCopyBtn" class="copy-btn-action">📋 Copy Snippet</button>
+            <button type="button" id="snippetCopyBtn" class="copy-btn-action">Copy Snippet</button>
           </div>
           <select id="snippetSelect" class="snooze-select"></select>
+        </div>
+
+        <div class="ai-prompt-box" id="aiRunBox">
+          <div class="prompt-box-header">
+            <span class="prompt-title">AI assist</span>
+            <span>
+              <button type="button" id="aiGenBtn" class="copy-btn-action">Generate proposal</button>
+              <button type="button" id="aiAnalyzeBtn" class="copy-btn-action">Quick analysis</button>
+            </span>
+          </div>
+          <p class="prompt-hint" id="aiRunHint"></p>
+          <textarea id="aiOutput" class="prompt-textarea" style="display:none"></textarea>
+          <button type="button" id="aiCopyBtn" class="copy-btn-action" style="display:none">Copy result</button>
         </div>
 
         <!-- Copy AI Prompt Action Box -->
@@ -146,7 +151,7 @@
           <div class="prompt-box-header">
             <span class="prompt-title">Winning AI Proposal Prompt:</span>
             <button type="button" id="modalCopyPromptBtn" class="copy-btn-action">
-              📋 Copy Prompt
+              Copy Prompt
             </button>
           </div>
           <p class="prompt-hint">Paste into <strong>ChatGPT, Claude, or Gemini</strong> to get an elite tailored proposal in 5 seconds.</p>
