@@ -5,6 +5,10 @@ console.log('[Upwork Radar] In-session monitor active on Upwork tab');
 
 // Listen for background service worker or popup requests
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === 'PING') {
+    sendResponse({ ok: true });
+    return;
+  }
   if (request.type === 'PERFORM_PAGE_CHECK' || request.type === 'EXTRACT_ACTIVE_TAB_JOBS') {
     handlePageCheck(request.settings)
       .then((jobs) => {
@@ -267,6 +271,11 @@ function injectOnPageJobIntelligence() {
     url: window.location.href
   };
 
+  const buyer = typeof classifyBuyer === 'function' ? classifyBuyer(parseClientStats(clientText)) : null;
+  const buyerHtml = buyer
+    ? `<div style="font-size:12.5px; font-weight:700; margin-bottom:8px;"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; background:${{ active: '#22c55e', window: '#f59e0b', ghost: '#ef4444' }[buyer.level]};"></span>${buyer.label} <span style="font-weight:500; color:#475569;">(${buyer.detail})</span></div>`
+    : '';
+
   const trust = typeof analyzeClientTrust === 'function'
     ? analyzeClientTrust(jobData)
     : { score: 75, verdict: 'SAFE CLIENT', badgeColor: '#15803d', redFlags: [], greenFlags: ['Verified Employer'] };
@@ -297,13 +306,14 @@ function injectOnPageJobIntelligence() {
   card.innerHTML = `
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
       <span style="font-weight:700; font-size:13.5px; color:#1e293b; display:flex; align-items:center; gap:6px;">
-        🧠 Radar Client & AI Score
+        Radar Client & AI Score
       </span>
       <span style="background:${trust.badgeColor}; color:white; font-size:11px; font-weight:700; padding:3px 9px; border-radius:12px;">
         ${trust.score}% • ${trust.verdict}
       </span>
     </div>
 
+    ${buyerHtml}
     ${flagsHtml}
 
     <button id="injectedCopyAiPromptBtn" style="
@@ -324,7 +334,7 @@ function injectOnPageJobIntelligence() {
       box-shadow: 0 2px 6px rgba(124, 58, 237, 0.3);
       transition: background 0.15s ease;
     ">
-      📋 Copy AI Winning Proposal Prompt
+      Copy AI Winning Proposal Prompt
     </button>
 
     <div id="injectedCopiedToast" style="
@@ -363,7 +373,7 @@ function injectOnPageJobIntelligence() {
       copyBtn.textContent = '✓ Prompt Copied!';
       setTimeout(() => {
         toast.style.display = 'none';
-        copyBtn.textContent = '📋 Copy AI Winning Proposal Prompt';
+        copyBtn.textContent = 'Copy AI Winning Proposal Prompt';
       }, 3500);
     } catch (err) {
       console.warn('[Upwork Radar] Clipboard error:', err);
@@ -383,17 +393,33 @@ if (window.location.hostname.includes('upwork.com')) {
     }
     injectOnPageJobIntelligence();
 
-    // Job detail page shows the exact connects price: tell the background so the popup can show it
-    const idMatch = location.href.match(/~[a-zA-Z0-9]+/);
-    const c = (document.body?.textContent || '').match(/Send a proposal for:?\s*(\d+)\s*Connects|Required Connects:?\s*(\d+)/i);
-    if (idMatch && c) {
-      chrome.runtime.sendMessage({ type: 'JOB_CONNECTS', id: idMatch[0], connects: Number(c[1] || c[2]) }).catch(() => {});
-    }
+    capturePageStats();
   }, 1200);
 
   // Monitor DOM changes for dynamic slider opens
+  let captureTimer;
   const observer = new MutationObserver(() => {
     injectOnPageJobIntelligence();
+    clearTimeout(captureTimer);
+    captureTimer = setTimeout(capturePageStats, 1500);
   });
   observer.observe(document.body, { childList: true, subtree: true });
+}
+
+// Job detail page: report exact Connects price and client hire stats to the background (once per change)
+const sentPageStats = new Set();
+function capturePageStats() {
+  const idMatch = location.href.match(/~[a-zA-Z0-9]+/);
+  if (!idMatch) return;
+  const text = document.body?.textContent || '';
+  const c = text.match(/Send a proposal for:?\s*(\d+)\s*Connects|Required Connects:?\s*(\d+)/i);
+  const connects = c ? Number(c[1] || c[2]) : undefined;
+  const at = text.search(/About the client/i);
+  const stats = at >= 0 ? parseClientStats(text.slice(at, at + 1200)) : {};
+
+  const key = idMatch[0] + JSON.stringify([connects, stats]);
+  if (sentPageStats.has(key)) return;
+  sentPageStats.add(key);
+  if (connects != null) chrome.runtime.sendMessage({ type: 'JOB_CONNECTS', id: idMatch[0], connects }).catch(() => {});
+  if (Object.keys(stats).length) chrome.runtime.sendMessage({ type: 'JOB_CLIENT_STATS', id: idMatch[0], stats }).catch(() => {});
 }

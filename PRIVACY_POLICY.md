@@ -36,7 +36,11 @@ This information never leaves your personal computer or browser.
 ---
 
 ### 4. Third-Party Services
-The Extension does not transmit data to any third-party analytics, tracking, or marketing platforms. All AI proposal prompts are generated locally via pre-constructed templates and copied to your clipboard only upon your explicit request.
+The Extension does not transmit data to any analytics, tracking, or marketing platforms. Two optional features, both off until you configure them, send data to services you choose:
+- **AI assistant (bring your own key):** if you enter an API key, clicking "Generate proposal" or "Quick analysis" sends that one job's details (title, budget, description, skills, client summary) and your profile settings to the provider you selected (OpenAI, Anthropic, or an OpenAI-compatible endpoint you specify). Nothing is sent automatically. Your key is kept in local extension storage and is sent only to that provider. Use of the provider is governed by their terms and privacy policy.
+- **Webhook alerts:** if you enter a Discord or Slack webhook URL, new-job alert text (title, budget, link) is posted to it.
+
+Proposal prompts without AI are still generated locally and copied to your clipboard only on request.
 
 ---
 
